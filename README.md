@@ -1,1 +1,1 @@
-# oxc-config
+# oxlint-config
