@@ -1,0 +1,104 @@
+{
+  "name": "@stzhu/oxlint-config",
+  "version": "0.1.0",
+  "description": "Shared Ultracite presets for Oxlint and Oxfmt with optional ESLint plugins",
+  "license": "MIT",
+  "author": "Steve Zhu <4130171+stevezhu@users.noreply.github.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stevezhu/oxlint-config.git"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "default": "./dist/core.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./vitest": {
+      "types": "./dist/vitest.d.ts",
+      "default": "./dist/vitest.js"
+    },
+    "./storybook": {
+      "types": "./dist/storybook.d.ts",
+      "default": "./dist/storybook.js"
+    },
+    "./tailwind": {
+      "types": "./dist/tailwind.d.ts",
+      "default": "./dist/tailwind.js"
+    },
+    "./turbo": {
+      "types": "./dist/turbo.d.ts",
+      "default": "./dist/turbo.js"
+    },
+    "./lingui": {
+      "types": "./dist/lingui.d.ts",
+      "default": "./dist/lingui.js"
+    },
+    "./oxfmt": {
+      "types": "./dist/oxfmt.d.ts",
+      "default": "./dist/oxfmt.js"
+    },
+    "./ts": {
+      "types": "./dist/core.d.ts",
+      "default": "./dist/core.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "pnpm build && pnpm lint && pnpm test",
+    "format": "oxfmt --write .",
+    "lint": "oxfmt --check . && oxlint",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "eslint-plugin-better-tailwindcss": "4.11.0",
+    "eslint-plugin-lingui": "0.16.0",
+    "eslint-plugin-storybook": "10.6.7",
+    "eslint-plugin-turbo": "2.11.10",
+    "ultracite": "8.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "oxfmt": "0.78.0",
+    "oxlint": "1.93.0",
+    "oxlint-tsgolint": "7.0.2006",
+    "tailwindcss": "^4.2.0",
+    "typescript": "^6.0.3"
+  },
+  "peerDependencies": {
+    "oxfmt": "^0.78.0",
+    "oxlint": "^1.93.0",
+    "tailwindcss": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "oxfmt": {
+      "optional": true
+    },
+    "tailwindcss": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@10.28.1"
+}
