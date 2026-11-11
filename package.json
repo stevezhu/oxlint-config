@@ -63,10 +63,10 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "check": "pnpm build && pnpm lint && pnpm test",
+    "check": "pnpm lint && pnpm test",
     "format": "oxfmt --write .",
-    "lint": "oxfmt --check . && oxlint",
-    "test": "node --test test/*.test.mjs",
+    "lint": "pnpm build && oxfmt --check . && oxlint",
+    "test": "pnpm build && node --test test/*.test.mjs",
     "prepack": "pnpm build"
   },
   "dependencies": {

@@ -139,4 +139,6 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-The checks build ESM and TypeScript declarations, lint/format this repository, exercise native and JavaScript rules through the real Oxlint CLI, and test a packed consumer. CI runs the same checks on Node.js 24 and 26.
+The checks build ESM and TypeScript declarations, lint/format this repository, exercise native and JavaScript rules through the real Oxlint CLI, and test a packed consumer. Lint and test each build first so they work independently in a fresh checkout.
+
+GitHub workflows mirror `@stzhu/eslint-config` and call the reusable workflows in `stevezhu/actions@v1`: CI on pushes and pull requests to `main`, a manually selected patch/minor/major version-bump PR, and npm publishing when a release is published. The shared workflows select Node.js from `engines.node` in package.json. Release publishing requires [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) configured for this repository and its `publish.yml` workflow.
