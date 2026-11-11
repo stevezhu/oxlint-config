@@ -141,4 +141,6 @@ pnpm check
 
 The checks build ESM and TypeScript declarations, lint/format this repository, exercise native and JavaScript rules through the real Oxlint CLI, and test a packed consumer. Lint and test each build first so they work independently in a fresh checkout.
 
-GitHub workflows mirror `@stzhu/eslint-config` and call the reusable workflows in `stevezhu/actions@v1`: CI on pushes and pull requests to `main`, a manually selected patch/minor/major version-bump PR, and npm publishing when a release is published. The shared workflows select Node.js from `engines.node` in package.json. Release publishing requires [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) configured for this repository and its `publish.yml` workflow.
+GitHub workflows follow the CI, version-bump, and release pattern of `@stzhu/eslint-config`, using the composite actions in `stevezhu/actions@v3`. They run CI on pushes and pull requests to `main`, open a manually selected patch/minor/major version-bump PR, and stage an npm publish when a release is published. The actions select Node.js from `engines.node` in package.json and pnpm from `packageManager` (pnpm 12, which supports staged publishing).
+
+Configure the repository's `NPM_TOKEN` secret for the publish action. Release publishing uses [`pnpm stage publish`](https://pnpm.io/cli/stage); approve the staged package on npmjs.com or with `pnpm stage approve <stage-id>` and 2FA before it becomes public. The stage ID appears in the action logs.
