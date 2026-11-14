@@ -15,6 +15,8 @@ const core: OxlintConfig = defineConfig({
   ],
   rules: {
     ...ultracite.rules,
+    // Preserve underscore-prefixed unused bindings from @stzhu/eslint-config;
+    // Ultracite enables this rule without the explicit ignore patterns.
     "no-unused-vars": [
       "error",
       {
@@ -26,11 +28,17 @@ const core: OxlintConfig = defineConfig({
         varsIgnorePattern: "^_",
       },
     ],
+    // Allow both interfaces and type aliases, as @stzhu/eslint-config did;
+    // Ultracite's default requires interfaces for object type definitions.
     "typescript/consistent-type-definitions": "off",
+    // Allow async JSX event handlers passed to void-returning attributes;
+    // Ultracite's default checks those attributes along with other callbacks.
     "typescript/no-misused-promises": [
       "error",
       { checksVoidReturn: { attributes: false } },
     ],
+    // Allow numeric interpolation without String() calls, preserving the old
+    // config's behavior; category severity settings cannot set this option.
     "typescript/restrict-template-expressions": [
       "error",
       { allowNumber: true },
