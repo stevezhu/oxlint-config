@@ -31,12 +31,26 @@ const core: OxlintConfig = defineConfig({
     // Allow both interfaces and type aliases, as @stzhu/eslint-config did;
     // Ultracite's default requires interfaces for object type definitions.
     "typescript/consistent-type-definitions": "off",
-    // Allow async JSX event handlers passed to void-returning attributes;
-    // Ultracite's default checks those attributes along with other callbacks.
-    "typescript/no-misused-promises": [
+    // A void expression does not handle rejection. Check JSX callbacks too:
+    // UI boundaries must catch failures instead of discarding their promises.
+    "typescript/no-floating-promises": [
       "error",
-      { checksVoidReturn: { attributes: false } },
+      { ignoreVoid: false, checkThenables: true },
     ],
+    "typescript/no-misused-promises": "error",
+    // Preserve semantic grouping and explanatory comments. These restrictions
+    // encourage mechanical rewrites without establishing correctness.
+    "sort-keys": "off",
+    "no-inline-comments": "off",
+    "no-warning-comments": "off",
+    "no-plusplus": "off",
+    "unicorn/no-array-for-each": "off",
+    "unicorn/no-array-reduce": "off",
+    // Ordering, retries, and bounded concurrency can require sequential awaits.
+    "no-await-in-loop": "off",
+    // Complexity metrics need project-specific budgets, outside the core gate.
+    complexity: "off",
+    "max-nested-callbacks": "off",
     // Allow numeric interpolation without String() calls, preserving the old
     // config's behavior; category severity settings cannot set this option.
     "typescript/restrict-template-expressions": [

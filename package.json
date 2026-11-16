@@ -56,6 +56,10 @@
     "./ts": {
       "types": "./dist/core.d.ts",
       "default": "./dist/core.js"
+    },
+    "./react-web": {
+      "types": "./dist/react-web.d.ts",
+      "default": "./dist/react-web.js"
     }
   },
   "publishConfig": {
@@ -65,9 +69,10 @@
     "build": "tsc -p tsconfig.build.json",
     "check": "pnpm lint && pnpm test",
     "format": "oxfmt --write .",
-    "lint": "pnpm build && oxfmt --check . && oxlint",
+    "lint": "pnpm build && pnpm typecheck && oxfmt --check . && oxlint",
     "test": "pnpm build && node --test test/*.test.mjs",
-    "prepack": "pnpm build"
+    "prepack": "pnpm build",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "eslint-plugin-better-tailwindcss": "4.11.0",
