@@ -1,0 +1,17 @@
+name: Stage Publish
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: stevezhu/actions/npm-publish@v3
+        with:
+          npm-token: ${{ secrets.NPM_TOKEN }}
