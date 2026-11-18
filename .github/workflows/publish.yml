@@ -11,6 +11,18 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - name: Verify the rule changes report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          report="$RUNNER_TEMP/rule-changes.md"
+          gh release download --pattern rule-changes.md --output "$report" -- "$RELEASE_TAG"
+          if ! grep -Fqx "Candidate commit: \`$GITHUB_SHA\`" "$report"; then
+            echo 'The rule changes report must match the commit being released.' >&2
+            exit 1
+          fi
       - uses: actions/checkout@v7
       - uses: stevezhu/actions/npm-publish@v3
         with:
