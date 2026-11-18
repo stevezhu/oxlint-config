@@ -11,6 +11,13 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
       - name: Verify the rule changes report
         env:
           GH_TOKEN: ${{ github.token }}
@@ -19,11 +26,7 @@ jobs:
         run: |
           report="$RUNNER_TEMP/rule-changes.md"
           gh release download --pattern rule-changes.md --output "$report" -- "$RELEASE_TAG"
-          if ! grep -Fqx "Candidate commit: \`$GITHUB_SHA\`" "$report"; then
-            echo 'The rule changes report must match the commit being released.' >&2
-            exit 1
-          fi
-      - uses: actions/checkout@v7
+          node scripts/release-report.ts verify "$report"
       - uses: stevezhu/actions/npm-publish@v3
         with:
           npm-token: ${{ secrets.NPM_TOKEN }}

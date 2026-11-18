@@ -1,11 +1,6 @@
 name: Rule changes
 on:
   workflow_dispatch:
-    inputs:
-      previous_tag:
-        description: Previous GitHub release tag, or 'initial' for the first release
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -24,7 +19,7 @@ jobs:
           node-version: 24
       - name: Compare shipped lint presets
         env:
-          PREVIOUS_TAG: ${{ inputs.previous_tag }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           install_and_build() (
             cd "$1"
@@ -33,14 +28,10 @@ jobs:
             npm run build
           )
 
+          comparison=$(node scripts/release-report.ts metadata)
+          previous_commit=$(jq -r '.previousCommit // empty' <<< "$comparison")
           baseline=--initial
-          if [[ "$PREVIOUS_TAG" != initial ]]; then
-            previous_commit=$(git rev-parse --verify "refs/tags/$PREVIOUS_TAG^{commit}")
-            git merge-base --is-ancestor "$previous_commit" HEAD
-            if [[ "$previous_commit" == "$(git rev-parse HEAD)" ]]; then
-              echo 'Choose a previous release tag.' >&2
-              exit 1
-            fi
+          if [[ -n "$previous_commit" ]]; then
             baseline="$RUNNER_TEMP/previous-release"
             git worktree add --detach "$baseline" "$previous_commit"
             install_and_build "$baseline"
@@ -48,10 +39,7 @@ jobs:
           install_and_build "$GITHUB_WORKSPACE"
           {
             node scripts/rule-changes.ts "$baseline"
-            printf '\nCandidate commit: `%s`\n' "$(git rev-parse HEAD)"
-            if [[ "$baseline" != --initial ]]; then
-              printf '\nPrevious commit: `%s`\n' "$previous_commit"
-            fi
+            printf '\n%s\n' "$(jq -r '.footer' <<< "$comparison")"
           } > "$RUNNER_TEMP/rule-changes.md"
       - uses: actions/upload-artifact@v7
         with:

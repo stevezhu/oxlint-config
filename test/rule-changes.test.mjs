@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const script = path.join(root, "scripts/rule-changes.ts");
 
-test("the release report finds changes to inherited options and file overrides", (context) => {
+test("the release report finds rule changes without repeating inherited rules for new presets", (context) => {
   const base = mkdtempSync(path.join(tmpdir(), "oxlint-config-rule-report-"));
   context.after(() => rmSync(base, { recursive: true, force: true }));
   symlinkSync(
@@ -29,7 +29,11 @@ test("the release report finds changes to inherited options and file overrides",
       name: "@stzhu/oxlint-config",
       version: "0.0.0",
       type: "module",
-      exports: { ".": { default: "./dist/index.js" } },
+      exports: {
+        ".": { default: "./dist/index.js" },
+        "./legacy": { default: "./dist/legacy.js" },
+        "./react": { default: "./dist/react.js" },
+      },
     })
   );
   mkdirSync(path.join(base, "dist"));
@@ -38,7 +42,8 @@ test("the release report finds changes to inherited options and file overrides",
     path.join(base, "dist/index.js"),
     `
 import core from ${JSON.stringify(core)};
-export const defineConfig = () => ({
+export const defineConfig = (config = {}) => ({
+  ...config,
   extends: [{
     ...core,
     rules: {
@@ -46,9 +51,18 @@ export const defineConfig = () => ({
       "typescript/no-floating-promises": ["error", { ignoreVoid: true, checkThenables: true }],
     },
     overrides: [{ files: ["**/*.previous.ts"], rules: { "no-console": ["warn", { allow: ["error"] }] } }],
-  }],
+  }, ...(config.extends ?? [])],
 });
 `
+  );
+  const react = new URL("../dist/react.js", import.meta.url).href;
+  writeFileSync(
+    path.join(base, "dist/react.js"),
+    `export { default } from ${JSON.stringify(react)};`
+  );
+  writeFileSync(
+    path.join(base, "dist/legacy.js"),
+    'export default { rules: { "no-alert": "error" } };'
   );
   const report = execFileSync(process.execPath, [script, base], {
     encoding: "utf-8",
@@ -84,6 +98,22 @@ export const defineConfig = () => ({
         line.includes("/react-web") &&
         line.includes("jsx_a11y/label-has-associated-control") &&
         line.includes("controlComponents")
+    )
+  );
+  assert.ok(
+    report.includes(
+      "- Added ` /react#reactRefresh `. Its rule changes are relative to ` /react ` in the candidate."
+    )
+  );
+  assert.ok(report.includes("- Removed ` /legacy `."));
+  const ruleRows = lines.filter((line) => line.startsWith("| "));
+  assert.ok(!ruleRows.some((line) => line.includes("/legacy")));
+  const refreshRows = ruleRows.filter((line) =>
+    line.includes("/react#reactRefresh")
+  );
+  assert.ok(
+    !refreshRows.some((line) =>
+      /react\/jsx-key|typescript\/no-floating-promises/u.test(line)
     )
   );
 });

@@ -9,9 +9,13 @@ import type { OxlintConfig } from "oxlint";
 
 type RuleMap = Record<string, unknown>;
 type RuleSnapshot = Map<string, string>;
+type PresetSnapshot = {
+  base: string;
+  rules: RuleSnapshot;
+};
 type PackageSnapshot = {
   label: string;
-  presets: Map<string, RuleSnapshot>;
+  presets: Map<string, PresetSnapshot>;
 };
 type Manifest = {
   name: string;
@@ -26,6 +30,8 @@ type PresetModule = Record<string, unknown> & {
   default?: OxlintConfig;
   defineConfig?: (config?: OxlintConfig) => OxlintConfig;
 };
+
+const basePreset = "defineConfig()";
 
 // The built exports, manifests, and CLI output come from the selected releases.
 // oxlint-disable-next-line typescript/no-unnecessary-type-parameters, typescript/no-unsafe-type-assertion -- Shape is supplied at the generated-data boundary.
@@ -140,10 +146,13 @@ const readPackage = async (
   if (!defineConfig) {
     throw new Error(`Missing defineConfig in ${manifestFile}`);
   }
-  const presets = new Map([
+  const presets = new Map<string, PresetSnapshot>([
     [
-      "defineConfig()",
-      printRules(oxlint, directory, configFile, defineConfig()),
+      basePreset,
+      {
+        base: basePreset,
+        rules: printRules(oxlint, directory, configFile, defineConfig()),
+      },
     ],
   ]);
 
@@ -170,10 +179,11 @@ const readPackage = async (
                   ? [preset]
                   : [defaultPreset, preset],
             });
-      presets.set(
-        `${subpath.slice(1)}${suffix}`,
-        printRules(oxlint, directory, configFile, config)
-      );
+      const presetPath = subpath.slice(1);
+      presets.set(`${presetPath}${suffix}`, {
+        base: defaultPreset === undefined ? basePreset : presetPath,
+        rules: printRules(oxlint, directory, configFile, config),
+      });
     }
   }
   return {
@@ -196,9 +206,13 @@ const collectChanges = (
       presets: string[];
     }
   >();
-  for (const preset of new Set([...before.keys(), ...after.keys()])) {
-    const older = before.get(preset) ?? new Map<string, string>();
-    const newer = after.get(preset) ?? new Map<string, string>();
+  const empty = new Map<string, string>();
+  for (const [preset, { base, rules: newer }] of after) {
+    // New exports share the candidate's core or subpath defaults.
+    const baseline =
+      before.get(preset) ??
+      (preset === basePreset ? undefined : after.get(base));
+    const older = baseline?.rules ?? empty;
     for (const key of new Set([...older.keys(), ...newer.keys()])) {
       const previous = older.get(key) ?? "—";
       const current = newer.get(key) ?? "—";
@@ -227,12 +241,40 @@ const code = (value: string) => {
   return `${ticks} ${value.replaceAll("|", "\\|")} ${ticks}`;
 };
 
+const printPresetExports = (
+  before: PackageSnapshot["presets"],
+  after: PackageSnapshot["presets"]
+) => {
+  const added = [...after.keys()]
+    .filter((preset) => preset !== basePreset && !before.has(preset))
+    .toSorted();
+  const removed = [...before.keys()]
+    .filter((preset) => !after.has(preset))
+    .toSorted();
+  if (added.length === 0 && removed.length === 0) {
+    return;
+  }
+  console.log("## Preset exports\n");
+  for (const preset of added) {
+    const base = after.get(preset)?.base ?? basePreset;
+    console.log(
+      `- Added ${code(preset)}. Its rule changes are relative to ${code(base)} in the candidate.`
+    );
+  }
+  for (const preset of removed) {
+    console.log(`- Removed ${code(preset)}.`);
+  }
+  console.log("");
+};
+
 const printReport = (before: PackageSnapshot, after: PackageSnapshot) => {
   console.log("# Oxlint rule changes\n");
   console.log(`- Previous: ${before.label}\n- Candidate: ${after.label}\n`);
   console.log(
     "Preset names are relative to the package name. `deny`, `warn` and `allow` are Oxlint's printed severities. A dash means there is no entry in that scope.\n"
   );
+  printPresetExports(before.presets, after.presets);
+  console.log("## Rule settings\n");
   const changes = collectChanges(before.presets, after.presets);
   if (changes.size === 0) {
     console.log("No rule-level changes.");
@@ -263,7 +305,7 @@ try {
   const config = path.join(directory, "oxlint.config.mts");
   const before =
     previous === "--initial"
-      ? { label: "Initial release", presets: new Map<string, RuleSnapshot>() }
+      ? { label: "Initial release", presets: new Map<string, PresetSnapshot>() }
       : await readPackage(path.resolve(previous), config);
   const after = await readPackage(
     fileURLToPath(new URL("../", import.meta.url)),

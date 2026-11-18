@@ -173,9 +173,9 @@ Configure the repository's `NPM_TOKEN` secret for the publish action. Release pu
 
 ### Release rule changes
 
-Run the **Rule changes** workflow on the tagged release candidate. Supply the previous GitHub release tag, or enter `initial` for the first release. The workflow builds each selected revision using its frozen lockfile and generates a `rule-changes.md` report with the compared commit SHAs.
+Run the **Rule changes** workflow on the tagged release candidate with `gh workflow run rule-changes.yml --ref <candidate-tag>`. The workflow compares against the most recent preceding GitHub release by publication time, including prereleases. The first release starts with an empty baseline. The workflow builds each selected revision using its frozen lockfile and generates a `rule-changes.md` report with both revision identities.
 
-Review the report and attach `rule-changes.md` to the GitHub release draft before publishing it. The staging workflow checks that the report matches the published tag’s commit.
+Review the report and attach `rule-changes.md` to the GitHub release draft before publishing it. The staging workflow verifies the report against the candidate and previous release tags and commits. Regenerate the report if another release is published before your candidate.
 
 The report compares the rules selected by each revision’s Oxlint, including inherited rule options and ordered file overrides. It covers `defineConfig()` and each lint preset composed with the shared core. It compares rule settings and severities. Changes to rule implementations and formatter settings belong in the release notes when they affect consumers.
 
