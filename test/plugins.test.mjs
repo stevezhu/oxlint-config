@@ -26,7 +26,7 @@ const oxlint = path.join(
   "bin/oxlint"
 );
 
-const createProject = (context, files) => {
+const createProject = (context, files, tailwindRoots = ["."]) => {
   const directory = mkdtempSync(path.join(tmpdir(), "stzhu-plugins-"));
   context.after(() => rmSync(directory, { recursive: true, force: true }));
   const modules = path.join(directory, "node_modules");
@@ -42,11 +42,15 @@ const createProject = (context, files) => {
     path.join(sharedPackage, "dist"),
     "junction"
   );
-  symlinkSync(
-    path.join(repository, "node_modules/tailwindcss"),
-    path.join(modules, "tailwindcss"),
-    "junction"
-  );
+  for (const root of tailwindRoots) {
+    const tailwindModules = path.join(directory, root, "node_modules");
+    mkdirSync(tailwindModules, { recursive: true });
+    symlinkSync(
+      path.join(repository, "node_modules/tailwindcss"),
+      path.join(tailwindModules, "tailwindcss"),
+      "junction"
+    );
+  }
   mkdirSync(path.join(modules, "@types"), { recursive: true });
   symlinkSync(
     path.join(repository, "node_modules/@types/node"),
@@ -241,6 +245,7 @@ test("monorepo lint applies each Tailwind theme and the root typed policy", (con
       extends: [reactWeb, tailwind],
       settings: {
         "better-tailwindcss": {
+          cwd: import.meta.dirname,
           entryPoint: fileURLToPath(new URL("src/styles.css", import.meta.url)),
         },
       },
@@ -287,7 +292,7 @@ test("monorepo lint applies each Tailwind theme and the root typed policy", (con
       "// oxlint-disable-next-line no-debugger\nexport const ready = true;";
   }
 
-  const directory = createProject(context, files);
+  const directory = createProject(context, files, workspaces);
   const clean = runLint(
     directory,
     workspaces.map((workspace) => `${workspace}/src/valid.tsx`)

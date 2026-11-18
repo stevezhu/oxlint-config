@@ -127,7 +127,7 @@ export default defineConfig({
 });
 ```
 
-A relative lint `entryPoint` resolves from the directory where you run Oxlint. Oxfmt's `stylesheet` resolves from its formatter config. See the [monorepo recipe](#tailwind-themes-in-a-monorepo) for separate workspace themes.
+A relative lint `entryPoint` resolves from the plugin's `cwd`, which defaults to the directory where you run Oxlint. Oxfmt's `stylesheet` resolves from its formatter config. See the [monorepo recipe](#tailwind-themes-in-a-monorepo) for separate workspace themes.
 
 ## Customization and migration
 
@@ -154,7 +154,7 @@ The Turbo plugin discovers `turbo.json` from the invocation's working directory.
 
 #### Tailwind themes in a monorepo
 
-For example, `apps/storefront` and `apps/admin` each have `src/styles.css` and their own `oxlint.config.mts`. Install the lint dependencies at the root and keep Tailwind CSS available to each workspace's stylesheet.
+For example, `apps/storefront` and `apps/admin` each have `src/styles.css` and their own `oxlint.config.mts`. Install the lint dependencies at the root and Tailwind CSS in each app.
 
 ```sh
 pnpm add -Dw @stzhu/oxlint-config oxlint oxlint-tsgolint typescript @types/node
@@ -170,7 +170,7 @@ export default defineConfig({
 });
 ```
 
-Use this `oxlint.config.mts` in each app. The absolute entry point is calculated from the app's config file, so it points to the same stylesheet from either working directory.
+Use this `oxlint.config.mts` in each app. The plugin's `cwd` points to the app so it can resolve the app's Tailwind CSS dependency. The absolute entry point points to the same stylesheet when you run Oxlint from the root or the app.
 
 ```ts
 import { fileURLToPath } from "node:url";
@@ -183,6 +183,7 @@ export default defineConfig({
   extends: [reactWeb, tailwind],
   settings: {
     "better-tailwindcss": {
+      cwd: import.meta.dirname,
       entryPoint: fileURLToPath(new URL("src/styles.css", import.meta.url)),
     },
   },
