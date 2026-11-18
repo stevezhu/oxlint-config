@@ -1,9 +1,33 @@
 import { defineConfig } from "oxlint";
+import type { OxlintConfig } from "oxlint";
 import ultracite from "ultracite/oxlint/react";
 
 import { webRules } from "./react-web-rules.js";
 
-export default defineConfig({
+const styleRules = {
+  "react/function-component-definition": [
+    "error",
+    {
+      namedComponents: "function-declaration",
+      unnamedComponents: "function-expression",
+    },
+  ],
+  "react/jsx-curly-brace-presence": "error",
+  "react/jsx-fragments": "error",
+  "react/self-closing-comp": "error",
+} satisfies NonNullable<OxlintConfig["rules"]>;
+
+/** Add after coreStyle to enforce the package's React component and JSX style. */
+export const reactStyle: OxlintConfig = defineConfig({
+  plugins: ["react"],
+  rules: {
+    ...styleRules,
+    // Core's expression preference conflicts with component declarations.
+    "func-style": "off",
+  },
+});
+
+const react: OxlintConfig = defineConfig({
   plugins: ["react"],
   rules: {
     ...Object.fromEntries(
@@ -11,20 +35,13 @@ export default defineConfig({
         ([name]) => !Object.hasOwn(webRules, name)
       )
     ),
-    // Ultracite core requires function expressions, which conflicts with the
-    // named component declarations required by the next rule.
-    "func-style": "off",
-    // Preserve the shared config's component style instead of Ultracite's
-    // named arrow components; category settings cannot choose these forms.
-    "react/function-component-definition": [
-      "error",
-      {
-        namedComponents: "function-declaration",
-        unnamedComponents: "function-expression",
-      },
-    ],
+    ...Object.fromEntries(
+      Object.keys(styleRules).map((rule) => [rule, "off" as const])
+    ),
   },
 });
+
+export default react;
 
 /** Add for applications using Vite's React Fast Refresh integration. */
 export const reactRefresh = defineConfig({

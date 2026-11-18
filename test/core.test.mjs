@@ -7,8 +7,9 @@ import path from "node:path";
 import test from "node:test";
 
 import { defineConfig } from "@stzhu/oxlint-config";
+import { coreStyle } from "@stzhu/oxlint-config/core";
 import node from "@stzhu/oxlint-config/node";
-import react, { reactRefresh } from "@stzhu/oxlint-config/react";
+import react, { reactRefresh, reactStyle } from "@stzhu/oxlint-config/react";
 import reactWeb from "@stzhu/oxlint-config/react-web";
 import vitest from "@stzhu/oxlint-config/vitest";
 
@@ -138,19 +139,54 @@ test("root rules and matching overrides can customize inherited rules", () => {
   );
 });
 
-test("native React accepts declarations and catches arrow components and hook misuse", () => {
+test("core accepts existing filenames, function declarations, arrays and type imports", () => {
+  const files = {
+    "Values.ts":
+      "export const example = ['hello']; export type Values = Array<string>; export function size(values: Values) { return values.length; }",
+    "consumer.ts":
+      "import { example, type Values } from './Values.js';\n\nexport const result: Values = example;",
+  };
+  assert.deepEqual(lint(defineConfig(), files), []);
+
+  const diagnostics = lint(defineConfig({ extends: [coreStyle] }), files);
+  assert.ok(hasRule(diagnostics, "array-type"));
+  assert.ok(hasRule(diagnostics, "consistent-type-specifier-style"));
+  assert.ok(hasRule(diagnostics, "filename-case"));
+  assert.ok(hasRule(diagnostics, "func-style"));
+});
+
+test("native React allows both component forms and catches Hooks and Fast Refresh violations", () => {
   const config = defineConfig({ extends: [react, reactRefresh] });
   const valid = lint(config, {
-    "app.tsx": "export function App() { return <div />; }",
+    "app.tsx":
+      "export function App() { return <div />; } export const Panel = () => <div />;",
   });
   assert.deepEqual(valid, []);
   const invalid = lint(config, {
     "app.tsx":
       "import { useState } from 'react'; export const App = () => { if (Math.random() > 0.5) { useState(0); } return <div />; }; export function helper() { return 1; }",
   });
-  assert.ok(hasRule(invalid, "function-component-definition"));
+  assert.ok(!hasRule(invalid, "function-component-definition"));
   assert.ok(hasRule(invalid, "rules-of-hooks"));
   assert.ok(hasRule(invalid, "only-export-components"));
+});
+
+test("React style restores JSX conventions and composes with core style", () => {
+  const files = {
+    "panel.tsx":
+      "import React from 'react';\n\nexport const Panel = () => <React.Fragment><div aria-label={'panel'}></div><div /></React.Fragment>; export function App() { return <Panel />; }",
+  };
+  assert.deepEqual(lint(defineConfig({ extends: [reactWeb] }), files), []);
+
+  const diagnostics = lint(
+    defineConfig({ extends: [reactWeb, coreStyle, reactStyle] }),
+    files
+  );
+  assert.ok(hasRule(diagnostics, "function-component-definition"));
+  assert.ok(hasRule(diagnostics, "jsx-curly-brace-presence"));
+  assert.ok(hasRule(diagnostics, "jsx-fragments"));
+  assert.ok(hasRule(diagnostics, "self-closing-comp"));
+  assert.ok(!hasRule(diagnostics, "func-style"));
 });
 
 test("Vitest rules apply only to test files, including JavaScript and __tests__", () => {

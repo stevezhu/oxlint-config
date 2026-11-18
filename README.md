@@ -7,8 +7,10 @@ Shared TypeScript and React lint configuration built on [Ultracite](https://www.
 Requires Node.js 24+ and Oxlint 1.93+. This is an ESM package.
 
 ```sh
-pnpm add -D @stzhu/oxlint-config oxlint oxfmt oxlint-tsgolint typescript
+pnpm add -D -E @stzhu/oxlint-config oxlint@1.93.0 oxlint-tsgolint@7.0.2006
 ```
+
+Keep your project's TypeScript dependency and type-check command.
 
 Create `oxlint.config.ts` in a package with `"type": "module"`. Use `oxlint.config.mts` in other packages:
 
@@ -30,7 +32,26 @@ export default defineConfig({
 
 `defineConfig()` always includes the core preset. For a framework-free TypeScript project, use `defineConfig({ options: { typeAware: true } })`. Calling it with no arguments remains supported for projects without typed linting. For a server project, add `@stzhu/oxlint-config/node` to `extends`.
 
-Create `oxfmt.config.ts` (or `.mts`) separately:
+Add Oxlint to your CI scripts:
+
+```json
+{
+  "scripts": {
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
+  }
+}
+```
+
+Run `pnpm lint` to see the diagnostics before applying any fixes. If you're migrating from ESLint, review which project-specific checks still need your existing config before switching the CI gate.
+
+### Optional formatting
+
+Install the formatter and create `oxfmt.config.ts` (or `.mts`):
+
+```sh
+pnpm add -D -E oxfmt@0.78.0
+```
 
 ```ts
 import shared from "@stzhu/oxlint-config/oxfmt";
@@ -39,13 +60,13 @@ import { defineConfig } from "oxfmt";
 export default defineConfig({ ...shared });
 ```
 
-Use the tool CLIs directly; no additional runner or ESLint config is required:
+Add formatting scripts when you're ready to adopt the shared format:
 
 ```json
 {
   "scripts": {
-    "lint": "oxfmt --check . && oxlint --max-warnings=0",
-    "fix": "oxfmt --write . && oxlint --fix"
+    "format:check": "oxfmt --check .",
+    "format": "oxfmt --write ."
   }
 }
 ```
@@ -58,7 +79,7 @@ Each subpath default-exports an Oxlint config object for `extends`, except `/oxf
 | --- | --- |
 | `/core` or `/ts` | Ultracite core: JavaScript, TypeScript, imports, Node conventions, promises, JSDoc, Unicorn, and Oxc rules. Included by `defineConfig`. |
 | `/node` | Enables Node globals; disables browser globals. |
-| `/react` | Shared React, Hooks, and React Compiler rules, without browser globals or DOM/HTML checks. Named components use function declarations, anonymous components use function expressions. |
+| `/react` | Shared React, Hooks, and React Compiler rules, without browser globals or DOM/HTML checks. |
 | `/react-web` | Extends `/react` with browser globals, DOM checks, and JSX accessibility. |
 | `/vitest` | Ultracite's native Vitest rules, scoped to test/spec files and `__tests__`, including JS/TS variants. Prefers `test` over `it`. |
 | `/storybook` | `eslint-plugin-storybook` recommended rules, scoped to stories and `.storybook/main.*`. |
@@ -133,7 +154,25 @@ The lint plugin's entry point resolves from the working directory; Oxfmt's style
 
 The wrapper preserves inherited `env`, `globals`, and `ignorePatterns` in declaration order, including nested presets. Oxlint otherwise drops those fields from imported `extends`. Consumer values win; additional ignores append to Ultracite's generated/build/dependency ignores. Negated patterns can re-include files. Oxlint handles rule, native plugin, and override merging. A matching inherited override wins over a root rule; put per-file customizations in a later matching `overrides` entry. See [Oxlint configuration](https://oxc.rs/docs/guide/usage/linter/config).
 
-Core disables browser globals; `/react-web` and `/node` select their environments. `/react` adds shared React checks without enabling a runtime. Split mixed server/browser code with file overrides. Core retains underscore-prefixed unused variable exemptions, permits either TypeScript object definition style, and allows numbers in template expressions. `/react` disables the conflicting general function-expression style rule. Other rules follow Ultracite's defaults, including kebab-case filenames.
+Core disables browser globals; `/react-web` and `/node` select their environments. `/react` adds shared React checks without enabling a runtime. Split mixed server/browser code with file overrides. Core retains underscore-prefixed unused variable exemptions, permits either TypeScript object definition style, and allows numbers in template expressions.
+
+### Opt-in style conventions
+
+The default presets accept existing filename case, array type syntax, function and component declarations or expressions, inline type specifiers in mixed imports, and equivalent JSX forms. Projects that want the previously enforced conventions can add these presets after their runtime presets:
+
+```ts
+import { defineConfig } from "@stzhu/oxlint-config";
+import { coreStyle } from "@stzhu/oxlint-config/core";
+import { reactStyle } from "@stzhu/oxlint-config/react";
+import reactWeb from "@stzhu/oxlint-config/react-web";
+
+export default defineConfig({
+  extends: [reactWeb, coreStyle, reactStyle],
+  options: { typeAware: true },
+});
+```
+
+Use `coreStyle` on its own for kebab-case filenames, `T[]` array syntax, top-level type imports, and a preference for function expressions. `reactStyle` keeps named component declarations and anonymous component expressions, allows ordinary function declarations in React projects, and enforces shorthand fragments, string props without redundant braces, and self-closing empty elements.
 
 ### Migrating from the initial 0.1 baseline
 
@@ -142,6 +181,7 @@ These defaults introduce breaking lint-policy changes. Release them as a new 0.x
 - Web applications should change `/react` imports to `/react-web`. Shared hooks and native components can use `/react`; this does not provide Expo or React Native platform checks. Fast Refresh remains a separate named export from `/react`.
 - Typed linting now rejects discarded promises even when prefixed with `void`, including thenables, and checks async callbacks assigned to void-returning JSX props. Handle UI-boundary failures explicitly, for example `onClick={() => { save().catch(reportError); }}`. The error handler should report the failure and update the UI; an empty catch only hides it. APIs typed to accept promises remain supported.
 - Vitest retains type safety in tests. Prefer typed fixtures and mocks; put necessary exemptions in a later matching override for specific fixture files.
+- Add `coreStyle` and `reactStyle` if your team already relies on those filename and syntax conventions.
 - Core permits semantic object-key grouping, inline explanations, TODO comments, increment operators, `forEach`, `reduce`, and sequential awaits. Complexity, callback nesting, assertion-count and describe-depth budgets are no longer universal blocking rules. Evaluate project-specific budgets in a separate audit configuration before promoting them to the main gate.
 
 ### Project coverage and monorepos
