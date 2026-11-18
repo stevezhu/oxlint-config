@@ -1,10 +1,16 @@
 import { defineConfig } from "oxlint";
 import ultracite from "ultracite/oxlint/react";
 
+import { webRules } from "./react-web-rules.js";
+
 export default defineConfig({
-  extends: [ultracite],
-  env: { browser: true },
+  plugins: ["react"],
   rules: {
+    ...Object.fromEntries(
+      Object.entries(ultracite.rules ?? {}).filter(
+        ([name]) => !Object.hasOwn(webRules, name)
+      )
+    ),
     // Ultracite core requires function expressions, which conflicts with the
     // named component declarations required by the next rule.
     "func-style": "off",

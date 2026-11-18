@@ -9,6 +9,7 @@ import test from "node:test";
 import { defineConfig } from "@stzhu/oxlint-config";
 import node from "@stzhu/oxlint-config/node";
 import react, { reactRefresh } from "@stzhu/oxlint-config/react";
+import reactWeb from "@stzhu/oxlint-config/react-web";
 import vitest from "@stzhu/oxlint-config/vitest";
 
 const require = createRequire(import.meta.url);
@@ -19,7 +20,7 @@ const oxlint = join(
   "bin/oxlint"
 );
 
-const lint = (config, files, flags = []) => {
+const lint = (config, files, flags = [], discover = false) => {
   const project = mkdtempSync(join(tmpdir(), "oxlint-config-core-"));
   try {
     writeFileSync(join(project, "package.json"), '{"type":"module"}');
@@ -35,8 +36,7 @@ const lint = (config, files, flags = []) => {
       process.execPath,
       [
         oxlint,
-        "--config",
-        "oxlint.config.mts",
+        ...(discover ? [] : ["--config", "oxlint.config.mts"]),
         "--format=json",
         "--ignore-pattern=oxlint.config.mts",
         ...flags,
@@ -184,4 +184,146 @@ test("circular configs fail clearly while shared presets remain reusable", () =>
   circular.extends = [circular];
   assert.throws(() => defineConfig(circular), /Circular/u);
   assert.doesNotThrow(() => defineConfig({ extends: [node, node] }));
+});
+
+test("typed promise policy checks void, thenables, JSX and safe error handlers", () => {
+  const diagnostics = lint(defineConfig({ options: { typeAware: true } }), {
+    "tsconfig.json": JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        target: "ES2022",
+        module: "ESNext",
+        jsx: "preserve",
+      },
+      include: ["*.ts", "*.tsx"],
+    }),
+    "types.d.ts":
+      "declare namespace JSX { type Element = { readonly kind?: 'jsx' }; interface IntrinsicElements { button: { onClick: () => void }; } }",
+    "voided.ts":
+      "export const run = () => { void Promise.reject(new Error('failure')); };",
+    "thenable.ts":
+      "declare const pending: PromiseLike<void>; export const run = () => { pending; };",
+    "handler.tsx":
+      "export const button = <button onClick={async () => { await Promise.resolve(); }} />;",
+    "safe.tsx":
+      "declare const save: () => Promise<void>; declare const reportError: (error: unknown) => void; export const button = <button onClick={() => { save().catch(reportError); }} />;",
+    "supported.tsx":
+      "declare const Action: (props: { action: () => Promise<void> }) => JSX.Element; export const button = <Action action={async () => { await Promise.resolve(); }} />;",
+  });
+  const promiseDiagnostics = diagnostics.filter((d) =>
+    /no-floating-promises|no-misused-promises/u.test(d.code ?? "")
+  );
+  assert.deepEqual(promiseDiagnostics.map((d) => d.filename).toSorted(), [
+    "handler.tsx",
+    "thenable.ts",
+    "voided.ts",
+  ]);
+});
+
+test("Vitest preserves typed assignment checks and later fixture overrides", () => {
+  const config = defineConfig({
+    extends: [vitest],
+    options: { typeAware: true },
+    overrides: [
+      {
+        files: ["fixture.test.ts"],
+        rules: { "typescript/no-unsafe-assignment": "off" },
+      },
+    ],
+  });
+  const source =
+    "declare const input: any; export const output: string = input;";
+  const diagnostics = lint(config, {
+    "tsconfig.json": JSON.stringify({
+      compilerOptions: { strict: true },
+      include: ["*.ts"],
+    }),
+    "application.test.ts": source,
+    "fixture.test.ts": source,
+  });
+  assert.deepEqual(
+    diagnostics
+      .filter((d) => d.code?.includes("(no-unsafe-assignment)"))
+      .map((d) => d.filename),
+    ["application.test.ts"]
+  );
+});
+
+test("React web selects browser globals and DOM accessibility independently", () => {
+  const files = {
+    "view.jsx":
+      "window.alert('hello'); export function View() { return <img />; }",
+  };
+  const shared = lint(
+    defineConfig({ extends: [react], rules: { "no-undef": "error" } }),
+    files
+  );
+  const web = lint(
+    defineConfig({ extends: [reactWeb], rules: { "no-undef": "error" } }),
+    files
+  );
+  assert.ok(hasRule(shared, "no-undef"));
+  assert.ok(!hasRule(shared, "alt-text"));
+  assert.ok(!hasRule(web, "no-undef"));
+  assert.ok(hasRule(web, "alt-text"));
+});
+
+test("core permits semantic grouping, comments and sequential operations", () => {
+  const diagnostics = lint(defineConfig(), {
+    "operations.ts":
+      "export const options = { zebra: 1, alpha: 2 }; // Grouped by purpose\n// TODO: retry policy\nexport const run = async () => { for (let i = 0; i < 2; i++) { await Promise.resolve(i); } [1, 2].forEach((value) => { options.zebra += value; }); return [1, 2].reduce((sum, value) => sum + value, 0); };",
+  });
+  assert.deepEqual(diagnostics, []);
+});
+
+test("nested workspace configs retain root typed policy and independent runtimes", () => {
+  const child = defineConfig({
+    extends: [reactWeb],
+    rules: { "no-undef": "error" },
+  });
+  const diagnostics = lint(
+    defineConfig({
+      extends: [node],
+      options: { typeAware: true, reportUnusedDisableDirectives: "error" },
+      rules: { "no-undef": "error" },
+    }),
+    {
+      "tsconfig.json": JSON.stringify({
+        compilerOptions: { strict: true, target: "ES2022" },
+        include: ["**/*.ts"],
+      }),
+      "server.ts":
+        "window.alert('invalid'); export const run = () => { Promise.resolve(1); };",
+      "web/oxlint.config.mts": `export default ${JSON.stringify(child)}`,
+      "web/client.ts":
+        "window.alert('valid'); export const run = () => { Promise.resolve(1); };",
+    },
+    [],
+    true
+  );
+  assert.deepEqual(
+    diagnostics
+      .filter((d) => d.code?.includes("(no-undef)"))
+      .map((d) => d.filename),
+    ["server.ts"]
+  );
+  assert.equal(
+    diagnostics.filter((d) => d.code?.includes("(no-floating-promises)"))
+      .length,
+    2
+  );
+});
+
+test("root option rejects stale suppressions", () => {
+  const config = defineConfig({
+    options: { reportUnusedDisableDirectives: "error" },
+  });
+  const diagnostics = lint(config, {
+    "stale.ts":
+      "// oxlint-disable-next-line no-debugger\nexport const value = 1;",
+    "needed.ts": "// oxlint-disable-next-line no-debugger\ndebugger;",
+  });
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].filename, "stale.ts");
+  assert.equal(diagnostics[0].severity, "error");
 });

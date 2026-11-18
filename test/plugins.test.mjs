@@ -162,3 +162,25 @@ test("Tailwind correctness rules use the consumer stylesheet", (context) => {
   );
   assert.deepEqual(lint("valid.tsx"), []);
 });
+
+test("Tailwind themes remain isolated between consumer workspaces", (context) => {
+  for (const [color, foreign] of [
+    ["brand", "accent"],
+    ["accent", "brand"],
+  ]) {
+    const lint = fixture(
+      context,
+      tailwind,
+      {
+        "styles.css": `@import "tailwindcss"; @theme { --color-${color}: #123456; }`,
+        "valid.tsx": `export const View = () => <div className="bg-${color}" />;`,
+        "foreign.tsx": `export const View = () => <div className="bg-${foreign}" />;`,
+      },
+      { "better-tailwindcss": { entryPoint: "./styles.css" } }
+    );
+    assert.deepEqual(lint("valid.tsx"), []);
+    assert.ok(
+      lint("foreign.tsx").includes("better-tailwindcss(no-unknown-classes)")
+    );
+  }
+});

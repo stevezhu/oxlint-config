@@ -20,21 +20,18 @@ const collectRootFields = (
   );
   ancestors.delete(config);
 
+  inherited.push(config);
+
   return {
-    env: Object.assign(
-      {},
-      ...inherited.map((preset) => preset.env),
-      config.env
+    env: inherited.reduce<NonNullable<OxlintConfig["env"]>>(
+      (env, preset) => Object.assign(env, preset.env),
+      {}
     ),
-    globals: Object.assign(
-      {},
-      ...inherited.map((preset) => preset.globals),
-      config.globals
+    globals: inherited.reduce<NonNullable<OxlintConfig["globals"]>>(
+      (globals, preset) => Object.assign(globals, preset.globals),
+      {}
     ),
-    ignorePatterns: [
-      ...inherited.flatMap((preset) => preset.ignorePatterns ?? []),
-      ...(config.ignorePatterns ?? []),
-    ],
+    ignorePatterns: inherited.flatMap((preset) => preset.ignorePatterns ?? []),
   };
 };
 
