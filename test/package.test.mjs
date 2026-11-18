@@ -29,6 +29,8 @@ test("the packed package works in an isolated pnpm consumer", () => {
   const directory = mkdtempSync(path.join(tmpdir(), "stzhu-oxlint-package-"));
   const artifacts = path.join(directory, "artifacts");
   const consumer = path.join(directory, "consumer");
+  const writeConsumerFile = (filename, content) =>
+    writeFileSync(path.join(consumer, filename), content);
   mkdirSync(artifacts);
   mkdirSync(consumer);
 
@@ -38,15 +40,23 @@ test("the packed package works in an isolated pnpm consumer", () => {
       file.endsWith(".tgz")
     );
     assert.ok(archive, "pnpm pack should produce a tarball");
-    writeFileSync(
-      path.join(consumer, "package.json"),
+    writeConsumerFile(
+      "package.json",
       JSON.stringify({
         private: true,
         type: "module",
-        dependencies: {
+        packageManager: manifest.packageManager,
+        scripts: {
+          lint: "oxlint",
+          "format:check": "oxfmt --check .",
+          format: "oxfmt --write .",
+        },
+        devDependencies: {
           [manifest.name]: `file:${path.join(artifacts, archive)}`,
           oxlint: manifest.devDependencies.oxlint,
           oxfmt: manifest.devDependencies.oxfmt,
+          "oxlint-tsgolint": manifest.devDependencies["oxlint-tsgolint"],
+          typescript: manifest.devDependencies.typescript,
         },
       })
     );
@@ -76,11 +86,99 @@ test("the packed package works in an isolated pnpm consumer", () => {
       "the consumer should not need to install the transitive plugin directly"
     );
 
+    // Match the README quickstart and exercise config discovery from the consumer.
+    writeConsumerFile(
+      "oxlint.config.ts",
+      `import { defineConfig } from "@stzhu/oxlint-config";
+import react from "@stzhu/oxlint-config/react-web";
+import vitest from "@stzhu/oxlint-config/vitest";
+
+export default defineConfig({
+  extends: [react, vitest],
+  ignorePatterns: ["vendor"],
+  options: {
+    typeAware: true,
+    maxWarnings: 0,
+    reportUnusedDisableDirectives: "error",
+  },
+});
+`
+    );
+    writeConsumerFile(
+      "oxfmt.config.ts",
+      `import shared from "@stzhu/oxlint-config/oxfmt";
+import { defineConfig } from "oxfmt";
+
+export default defineConfig({ ...shared });
+`
+    );
+    writeConsumerFile(
+      "tsconfig.json",
+      JSON.stringify({
+        compilerOptions: {
+          target: "ES2023",
+          module: "NodeNext",
+          moduleResolution: "NodeNext",
+          strict: true,
+          noEmit: true,
+          types: [],
+        },
+        include: ["*.ts"],
+      })
+    );
+    writeConsumerFile("alpha.ts", 'export const alpha = "alpha";\n');
+    writeConsumerFile("zebra.ts", 'export const zebra = "zebra";\n');
+    writeConsumerFile(
+      "valid.ts",
+      `import { zebra } from "./zebra.js";
+import { alpha } from "./alpha.js";
+
+declare const load: (message: string) => Promise<void>;
+export const run = async () => {
+  await load(alpha);
+  await load(zebra);
+};
+`
+    );
+    const format = spawnSync("pnpm", ["exec", "oxfmt", "--check", "valid.ts"], {
+      cwd: consumer,
+      encoding: "utf-8",
+    });
+    assert.equal(format.status, 1, format.stdout + format.stderr);
+    run("pnpm", ["format"], consumer);
+    assert.match(
+      readFileSync(path.join(consumer, "valid.ts"), "utf-8"),
+      /from "\.\/alpha\.js";\s+import \{ zebra \} from "\.\/zebra\.js";/u,
+      "Oxfmt should apply import sorting from the shared preset"
+    );
+    run("pnpm", ["lint"], consumer);
+    run("pnpm", ["format:check"], consumer);
+
+    writeConsumerFile(
+      "floating-promise.ts",
+      `declare const load: () => Promise<void>;
+export const run = () => {
+  load();
+};
+`
+    );
+    const typedLint = spawnSync(
+      "pnpm",
+      ["exec", "oxlint", "floating-promise.ts", "--format=json"],
+      { cwd: consumer, encoding: "utf-8" }
+    );
+    assert.equal(typedLint.status, 1, typedLint.stdout + typedLint.stderr);
+    assert.deepEqual(
+      JSON.parse(typedLint.stdout).diagnostics.map(({ code }) => code),
+      ["typescript(no-floating-promises)"],
+      "only a type-aware rule should catch the discarded return value"
+    );
+
     const specifiers = Object.keys(manifest.exports).map((subpath) =>
       subpath === "." ? manifest.name : `${manifest.name}${subpath.slice(1)}`
     );
-    writeFileSync(
-      path.join(consumer, "smoke.mjs"),
+    writeConsumerFile(
+      "smoke.mjs",
       `for (const specifier of ${JSON.stringify(specifiers)}) {
   const config = await import(specifier);
   if (specifier === ${JSON.stringify(manifest.name)}) {
@@ -101,47 +199,23 @@ test("the packed package works in an isolated pnpm consumer", () => {
     const lintPresets = specifiers.flatMap((specifier, index) =>
       index > 0 && !specifier.endsWith("/oxfmt") ? [`preset${index}`] : []
     );
-    writeFileSync(
-      path.join(consumer, "types.ts"),
+    writeConsumerFile(
+      "types.ts",
       `${imports.join("\n")}
 const config: OxlintConfig = defineConfig({ extends: [${lintPresets.join(", ")}] });
 void config;
 `
     );
-    writeFileSync(
-      path.join(consumer, "tsconfig.json"),
-      JSON.stringify({
-        compilerOptions: {
-          module: "NodeNext",
-          moduleResolution: "NodeNext",
-          strict: true,
-          noEmit: true,
-          types: [],
-        },
-        files: ["types.ts"],
-      })
-    );
-    run(
-      process.execPath,
-      [
-        path.join(root, "node_modules/typescript/bin/tsc"),
-        "-p",
-        "tsconfig.json",
-      ],
-      consumer
-    );
+    run("pnpm", ["exec", "tsc", "-p", "tsconfig.json"], consumer);
 
-    writeFileSync(
-      path.join(consumer, "oxlint.config.mjs"),
+    writeConsumerFile(
+      "oxlint.config.mjs",
       `import { defineConfig } from "${manifest.name}";
 import lingui from "${manifest.name}/lingui";
 export default defineConfig({ extends: [lingui] });
 `
     );
-    writeFileSync(
-      path.join(consumer, "probe.ts"),
-      "export const message = t`Hello`;\n"
-    );
+    writeConsumerFile("probe.ts", "export const message = t`Hello`;\n");
     const lint = spawnSync(
       "pnpm",
       [
