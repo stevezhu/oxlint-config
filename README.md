@@ -127,7 +127,7 @@ export default defineConfig({
 });
 ```
 
-The lint plugin's entry point resolves from the working directory; Oxfmt's stylesheet resolves from its config. In monorepos with different themes, give each workspace its own config and run lint there.
+A relative lint `entryPoint` resolves from the directory where you run Oxlint. Oxfmt's `stylesheet` resolves from its formatter config. See the [monorepo recipe](#tailwind-themes-in-a-monorepo) for separate workspace themes.
 
 ## Customization and migration
 
@@ -146,11 +146,56 @@ These defaults introduce breaking lint-policy changes. Release them as a new 0.x
 
 ### Project coverage and monorepos
 
-Keep `options.typeAware` and `options.reportUnusedDisableDirectives` in the invocation's root config only. Each workspace explicitly imports the shared presets it needs; nested configs do not automatically inherit the parent. Install tools once at the monorepo root, and run `oxlint` there without `--config` to preserve nested discovery. Do not import a root config containing root-only options into a nested config.
+Install lint tools at the monorepo root and run `pnpm exec oxlint` there. Oxlint discovers the nearest config for each file. Each workspace imports the presets it needs and declares its plugin settings in its own config. Keep `options.typeAware` and `options.reportUnusedDisableDirectives` in the root config. Run without `--config` to preserve [nested discovery](https://oxc.rs/docs/guide/usage/linter/nested-config).
 
 Provide discoverable `tsconfig.json` files with deliberately scoped source, config, and test includes. Recommend TypeScript `strict` and `noUncheckedIndexedAccess`; evaluate `exactOptionalPropertyTypes` against each project's APIs. Keep the project's TypeScript check while validating compatibility with Oxlint's optional type-checking mode. This repository type-checks its TS source and configuration files, while its dynamic `.mjs` CLI harness has explicit local exemptions for unsafe-value diagnostics; the published Vitest preset has no such exemptions.
 
-Plugin `settings` stay explicit on the consuming config, including custom JSX components and Tailwind stylesheet locations. They are not inherited through `extends`. Tailwind and Turbo use working-directory-sensitive discovery: run their checks from the workspace when that workspace owns the theme or Turbo config. Each workspace's Oxfmt stylesheet path resolves from its formatter config.
+The Turbo plugin discovers `turbo.json` from the invocation's working directory. Run from the monorepo root when using its root Turbo config.
+
+#### Tailwind themes in a monorepo
+
+For example, `apps/storefront` and `apps/admin` each have `src/styles.css` and their own `oxlint.config.mts`. Install the lint dependencies at the root and keep Tailwind CSS available to each workspace's stylesheet.
+
+```sh
+pnpm add -Dw @stzhu/oxlint-config oxlint oxlint-tsgolint typescript @types/node
+```
+
+In the repository root's `oxlint.config.mts`, configure the options for the whole lint run.
+
+```ts
+import { defineConfig } from "@stzhu/oxlint-config";
+
+export default defineConfig({
+  options: { typeAware: true, reportUnusedDisableDirectives: "error" },
+});
+```
+
+Use this `oxlint.config.mts` in each app. The absolute entry point is calculated from the app's config file, so it points to the same stylesheet from either working directory.
+
+```ts
+import { fileURLToPath } from "node:url";
+
+import { defineConfig } from "@stzhu/oxlint-config";
+import reactWeb from "@stzhu/oxlint-config/react-web";
+import tailwind from "@stzhu/oxlint-config/tailwind";
+
+export default defineConfig({
+  extends: [reactWeb, tailwind],
+  settings: {
+    "better-tailwindcss": {
+      entryPoint: fileURLToPath(new URL("src/styles.css", import.meta.url)),
+    },
+  },
+});
+```
+
+Include each lint config in its project's `tsconfig.json`. Add `node` to `compilerOptions.types` for the configs that import `node:url`.
+
+Run `pnpm exec oxlint` from the root to apply each theme and the root typed and suppression policies in one invocation. For a workspace-local run, pass those options on the CLI because the app's config becomes the root for that invocation.
+
+```sh
+pnpm --dir apps/storefront exec oxlint --type-aware --report-unused-disable-directives-severity=error
+```
 
 Oxfmt owns formatting and import/class ordering; side-effect import sorting remains disabled. Keep optional JS plugins selected individually. Broader Ultracite parity and anti-slop presets should first demonstrate useful additional diagnostics on representative code; native equivalents remain preferred. Do not duplicate a rule between Oxlint and a companion ESLint configuration.
 
