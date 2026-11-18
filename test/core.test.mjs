@@ -11,7 +11,7 @@ import { coreStyle } from "@stzhu/oxlint-config/core";
 import node from "@stzhu/oxlint-config/node";
 import react, { reactRefresh, reactStyle } from "@stzhu/oxlint-config/react";
 import reactWeb from "@stzhu/oxlint-config/react-web";
-import vitest from "@stzhu/oxlint-config/vitest";
+import vitest, { vitestStyle } from "@stzhu/oxlint-config/vitest";
 
 const require = createRequire(import.meta.url);
 const { delimiter, dirname, join } = path;
@@ -155,6 +155,66 @@ test("core accepts existing filenames, function declarations, arrays and type im
   assert.ok(hasRule(diagnostics, "func-style"));
 });
 
+test("core accepts common syntax in framework callbacks and service classes", () => {
+  const files = {
+    "service.ts":
+      "export class Service { constructor(private readonly id: string) {} public getId() { return this.id; } public getVersion() { return 'v1'; } } export const plugins = ['read'].map(function (name) { return name.length; }); export const version = async () => { return 'v1'; };",
+  };
+  assert.deepEqual(lint(defineConfig(), files), []);
+
+  const diagnostics = lint(defineConfig({ extends: [coreStyle] }), files);
+  assert.ok(hasRule(diagnostics, "parameter-properties"));
+  assert.ok(hasRule(diagnostics, "class-methods-use-this"));
+  assert.ok(hasRule(diagnostics, "func-names"));
+  assert.ok(hasRule(diagnostics, "prefer-arrow-callback"));
+  assert.ok(hasRule(diagnostics, "arrow-body-style"));
+  assert.ok(hasRule(diagnostics, "require-await"));
+});
+
+test("core allows decorated modules and async handlers while Express 4 checks remain available", () => {
+  const files = {
+    "links-module.ts":
+      "declare const Module: () => ClassDecorator; @Module() export class LinksModule {}",
+    "empty.ts": "export class Empty {}",
+    "fastify-routes.ts":
+      "import fastify from 'fastify';\n\nconst app = fastify(); app.get('/', { schema: {} }, async function (request) { return request.query; });",
+    "express-routes.ts":
+      "import express from 'express';\n\ndeclare const repository: { load: (id: string) => Promise<string> }; const app = express(); app.get('/', async (request, response) => { const body = await repository.load(request.params.id); response.send(body); });",
+  };
+  const diagnostics = lint(defineConfig(), files);
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].filename, "empty.ts");
+  assert.ok(hasRule(diagnostics, "no-extraneous-class"));
+
+  const express = lint(
+    defineConfig({ rules: { "oxc/no-async-endpoint-handlers": "error" } }),
+    { "express-routes.ts": files["express-routes.ts"] }
+  );
+  assert.ok(hasRule(express, "no-async-endpoint-handlers"));
+});
+
+test("typed core leaves runtime decorator tokens as value imports and checks empty imports", () => {
+  const diagnostics = lint(defineConfig({ options: { typeAware: true } }), {
+    "tsconfig.json": JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        target: "ES2022",
+        module: "NodeNext",
+        experimentalDecorators: true,
+        emitDecoratorMetadata: true,
+      },
+      include: ["*.ts"],
+    }),
+    "service.ts": "export class Service { public readonly version = 'v1'; }",
+    "controller.ts":
+      "import { Service } from './service.js';\n\nconst controller = (): ClassDecorator => (target) => target;\n\n@controller()\nexport class Controller { constructor(private readonly service: Service) {} public version() { return this.service.version; } }",
+    "empty-import.ts":
+      "import { type Service } from './service.js';\n\nexport const version = (service: Service) => service.version;",
+  });
+  assert.ok(!hasRule(diagnostics, "consistent-type-imports"));
+  assert.ok(hasRule(diagnostics, "no-import-type-side-effects"));
+});
+
 test("native React allows both component forms and catches Hooks and Fast Refresh violations", () => {
   const config = defineConfig({ extends: [react, reactRefresh] });
   const valid = lint(config, {
@@ -202,6 +262,23 @@ test("Vitest rules apply only to test files, including JavaScript and __tests__"
   );
   assert.equal(focused.length, 2);
   assert.ok(focused.every((diagnostic) => diagnostic.filename !== "index.ts"));
+});
+
+test("Vitest makes naming, imports and suite grouping opt-in and scopes them to tests", () => {
+  const source = "it('works', () => { expect(1).toBe(1); });";
+  const files = { "sample.test.ts": source, "index.ts": source };
+  assert.deepEqual(lint(defineConfig({ extends: [vitest] }), files), []);
+
+  const diagnostics = lint(
+    defineConfig({ extends: [vitest, vitestStyle] }),
+    files
+  );
+  assert.ok(hasRule(diagnostics, "consistent-test-it"));
+  assert.ok(hasRule(diagnostics, "prefer-importing-vitest-globals"));
+  assert.ok(hasRule(diagnostics, "require-top-level-describe"));
+  assert.ok(
+    diagnostics.every((diagnostic) => diagnostic.filename === "sample.test.ts")
+  );
 });
 
 test("type-aware opt-in detects a floating promise through the installed runner", () => {

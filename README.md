@@ -81,7 +81,7 @@ Each subpath default-exports an Oxlint config object for `extends`, except `/oxf
 | `/node` | Enables Node globals; disables browser globals. |
 | `/react` | Shared React, Hooks, and React Compiler rules, without browser globals or DOM/HTML checks. |
 | `/react-web` | Extends `/react` with browser globals, DOM checks, and JSX accessibility. |
-| `/vitest` | Ultracite's native Vitest rules, scoped to test/spec files and `__tests__`, including JS/TS variants. Prefers `test` over `it`. |
+| `/vitest` | Ultracite's native Vitest rules, scoped to test/spec files and `__tests__`, including JS/TS variants. |
 | `/storybook` | `eslint-plugin-storybook` recommended rules, scoped to stories and `.storybook/main.*`. |
 | `/tailwind` | `eslint-plugin-better-tailwindcss` correctness checks for unknown, conflicting, and concatenated classes. |
 | `/lingui` | `eslint-plugin-lingui` recommended checks. |
@@ -154,11 +154,13 @@ The lint plugin's entry point resolves from the working directory; Oxfmt's style
 
 The wrapper preserves inherited `env`, `globals`, and `ignorePatterns` in declaration order, including nested presets. Oxlint otherwise drops those fields from imported `extends`. Consumer values win; additional ignores append to Ultracite's generated/build/dependency ignores. Negated patterns can re-include files. Oxlint handles rule, native plugin, and override merging. A matching inherited override wins over a root rule; put per-file customizations in a later matching `overrides` entry. See [Oxlint configuration](https://oxc.rs/docs/guide/usage/linter/config).
 
-Core disables browser globals; `/react-web` and `/node` select their environments. `/react` adds shared React checks without enabling a runtime. Split mixed server/browser code with file overrides. Core retains underscore-prefixed unused variable exemptions, permits either TypeScript object definition style, and allows numbers in template expressions.
+Core disables browser globals. `/react-web` and `/node` select their environments. `/react` adds shared React checks without enabling a runtime. Split mixed server/browser code with file overrides. Core retains underscore-prefixed unused variable exemptions, permits either TypeScript object definition style, and allows numbers in template expressions.
+
+Express 4 projects can enable [`oxc/no-async-endpoint-handlers`](https://oxc.rs/docs/guide/usage/linter/rules/oxc/no-async-endpoint-handlers) in their consumer `rules` to flag async handlers whose rejections need forwarding to `next`. Core allows async handlers used by frameworks such as Fastify and Express 5.
 
 ### Opt-in style conventions
 
-The default presets accept existing filename case, array type syntax, function and component declarations or expressions, inline type specifiers in mixed imports, and equivalent JSX forms. Projects that want the previously enforced conventions can add these presets after their runtime presets:
+The default presets accept existing filename case, array type syntax, function and component forms, import conventions, and equivalent JSX syntax. Add the style presets after your runtime presets to enforce the previous conventions.
 
 ```ts
 import { defineConfig } from "@stzhu/oxlint-config";
@@ -172,7 +174,9 @@ export default defineConfig({
 });
 ```
 
-Use `coreStyle` on its own for kebab-case filenames, `T[]` array syntax, top-level type imports, and a preference for function expressions. `reactStyle` keeps named component declarations and anonymous component expressions, allows ordinary function declarations in React projects, and enforces shorthand fragments, string props without redundant braces, and self-closing empty elements.
+`coreStyle` enforces kebab-case filenames, `T[]` array syntax, top-level type imports, class property conventions, function and arrow syntax, and `await` inside async functions. `reactStyle` allows ordinary function declarations in React projects and enforces declarations for named components, expressions for anonymous components, shorthand fragments, string props without redundant braces, and self-closing empty elements. Add `{ vitestStyle }` from `@stzhu/oxlint-config/vitest` after `/vitest` to require `test` over `it`, explicit Vitest imports, and top-level `describe` blocks.
+
+Keep TypeScript's own type checks. [`verbatimModuleSyntax`](https://www.typescriptlang.org/tsconfig/#verbatimModuleSyntax) can enforce explicit type-only imports according to the compiler's emit rules. For projects that use legacy decorators and `emitDecoratorMetadata`, keep class imports used as dependency injection tokens as value imports. If you opt into `coreStyle`, set `"typescript/consistent-type-imports": "off"` in those projects because Oxlint can suggest removing a runtime import required by emitted metadata.
 
 ### Migrating from the initial 0.1 baseline
 
@@ -181,7 +185,7 @@ These defaults introduce breaking lint-policy changes. Release them as a new 0.x
 - Web applications should change `/react` imports to `/react-web`. Shared hooks and native components can use `/react`; this does not provide Expo or React Native platform checks. Fast Refresh remains a separate named export from `/react`.
 - Typed linting now rejects discarded promises even when prefixed with `void`, including thenables, and checks async callbacks assigned to void-returning JSX props. Handle UI-boundary failures explicitly, for example `onClick={() => { save().catch(reportError); }}`. The error handler should report the failure and update the UI; an empty catch only hides it. APIs typed to accept promises remain supported.
 - Vitest retains type safety in tests. Prefer typed fixtures and mocks; put necessary exemptions in a later matching override for specific fixture files.
-- Add `coreStyle` and `reactStyle` if your team already relies on those filename and syntax conventions.
+- Add the relevant style presets if your team already relies on those conventions.
 - Core permits semantic object-key grouping, inline explanations, TODO comments, increment operators, `forEach`, `reduce`, and sequential awaits. Complexity, callback nesting, assertion-count and describe-depth budgets are no longer universal blocking rules. Evaluate project-specific budgets in a separate audit configuration before promoting them to the main gate.
 
 ### Project coverage and monorepos
