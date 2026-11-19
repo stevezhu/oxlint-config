@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 
 interface Release {
   draft: boolean;
-  id: number;
   published_at: string | null;
   tag_name: string;
 }
@@ -26,8 +25,32 @@ const parseJSON = <T>(json: string): T => JSON.parse(json) as T;
 const isPublished = (release: Release): release is PublishedRelease =>
   !release.draft && release.published_at !== null;
 
-const comparePublication = (left: PublishedRelease, right: PublishedRelease) =>
-  left.published_at.localeCompare(right.published_at) || left.id - right.id;
+const previousRelease = (
+  releases: PublishedRelease[],
+  tag: string,
+  cutoff: PublishedRelease | undefined
+) => {
+  const others = releases.filter((release) => release.tag_name !== tag);
+  if (
+    cutoff &&
+    others.some((release) => release.published_at === cutoff.published_at)
+  ) {
+    throw new Error(
+      "The candidate shares a publication timestamp with another release. Its predecessor is ambiguous."
+    );
+  }
+  const [previous, second] = others
+    .filter((release) => !cutoff || release.published_at < cutoff.published_at)
+    .toSorted((left, right) =>
+      right.published_at.localeCompare(left.published_at)
+    );
+  if (previous && previous.published_at === second?.published_at) {
+    throw new Error(
+      "Two previous releases share a publication timestamp. The predecessor is ambiguous."
+    );
+  }
+  return previous;
+};
 
 const resolveTag = (tag: string): Revision => ({
   commit: run("git", [
@@ -61,26 +84,28 @@ const releaseComparison = (release?: PublishedRelease) => {
     throw new Error("The release event must match the candidate tag.");
   }
 
-  const releases = parseJSON<Release[][]>(
-    run("gh", [
+  const history = execFileSync(
+    "gh",
+    [
       "api",
       "--paginate",
-      "--slurp",
       `repos/${GITHUB_REPOSITORY}/releases?per_page=100`,
-    ])
-  )
-    .flat()
-    .filter(isPublished);
+      "--jq",
+      ".[] | {draft, published_at, tag_name}",
+    ],
+    { encoding: "utf-8", maxBuffer: Number.POSITIVE_INFINITY }
+  ).trim();
+  const releases =
+    history === ""
+      ? []
+      : history
+          .split("\n")
+          .map(parseJSON<Release>)
+          .filter(isPublished);
   const cutoff =
     release ?? releases.find(({ tag_name: tag }) => tag === candidate.tag);
-  const [previousRelease] = releases
-    .filter(
-      (item) =>
-        item.tag_name !== candidate.tag &&
-        (cutoff === undefined || comparePublication(item, cutoff) < 0)
-    )
-    .toSorted((left, right) => comparePublication(right, left));
-  const previous = previousRelease && resolveTag(previousRelease.tag_name);
+  const preceding = previousRelease(releases, candidate.tag, cutoff);
+  const previous = preceding && resolveTag(preceding.tag_name);
 
   return {
     previousCommit: previous?.commit ?? null,
@@ -107,43 +132,31 @@ const readPublishedEvent = (): PublishedRelease => {
   return release;
 };
 
-const verify = (reportPath: string) => {
-  const comparison = releaseComparison(readPublishedEvent());
-  const report = readFileSync(reportPath, "utf-8").trimEnd();
-  if (!report.endsWith(`\n\n${comparison.footer}`)) {
+const verify = (generatedPath: string, attachedPath: string) => {
+  if (!readFileSync(generatedPath).equals(readFileSync(attachedPath))) {
     throw new Error(
-      "The report must match the candidate and previous published release."
-    );
-  }
-
-  const body = report.slice(0, -comparison.footer.length - 2);
-  const lines = body.split("\n");
-  const [previousSummary, candidateSummary] = lines.slice(2);
-  const isInitialReport = previousSummary === "- Previous: Initial release";
-  const hasChanges =
-    /\n\| Scope \| Rule \| Previous \| Candidate \| Presets \|\n\|[^\n]+\n\|[^\n]+/u.test(
-      body
-    );
-  if (
-    !body.startsWith("# Oxlint rule changes\n\n") ||
-    previousSummary?.startsWith("- Previous: ") !== true ||
-    candidateSummary?.startsWith("- Candidate: ") !== true ||
-    isInitialReport !== (comparison.previousCommit === null) ||
-    (!hasChanges && !lines.includes("No rule-level changes."))
-  ) {
-    throw new Error(
-      "Attach the complete rule changes report for this comparison."
+      "The attached rule changes report differs from the report generated for these releases."
     );
   }
 };
 
-const [command, reportPath] = process.argv.slice(2);
-if (command === "metadata") {
+const [command, first, second] = process.argv.slice(2);
+if (command === "metadata" && first === undefined) {
   console.log(JSON.stringify(releaseComparison()));
-} else if (command === "verify" && reportPath !== undefined) {
-  verify(reportPath);
+} else if (
+  command === "metadata" &&
+  first === "--published" &&
+  second === undefined
+) {
+  console.log(JSON.stringify(releaseComparison(readPublishedEvent())));
+} else if (
+  command === "verify" &&
+  first !== undefined &&
+  second !== undefined
+) {
+  verify(first, second);
 } else {
   throw new Error(
-    "Use release-report.ts metadata or release-report.ts verify <report>."
+    "Use release-report.ts metadata [--published] or release-report.ts verify <generated> <attached>."
   );
 }

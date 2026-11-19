@@ -4,12 +4,11 @@ on:
     types: [published]
 
 jobs:
-  publish:
+  verify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -18,7 +17,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - name: Verify the rule changes report
+      - name: Download the rule changes report and resolve its comparison
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -26,7 +25,24 @@ jobs:
         run: |
           report="$RUNNER_TEMP/rule-changes.md"
           gh release download --pattern rule-changes.md --output "$report" -- "$RELEASE_TAG"
-          node scripts/release-report.ts verify "$report"
+          node scripts/release-report.ts metadata --published > "$RUNNER_TEMP/release-comparison.json"
+      - name: Verify the rule changes report
+        run: |
+          expected="$RUNNER_TEMP/expected-rule-changes.md"
+          bash scripts/generate-release-report.sh "$RUNNER_TEMP/release-comparison.json" "$expected"
+          node scripts/release-report.ts verify "$expected" "$RUNNER_TEMP/rule-changes.md"
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: stevezhu/actions/npm-publish@v3
         with:
           npm-token: ${{ secrets.NPM_TOKEN }}

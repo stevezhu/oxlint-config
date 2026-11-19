@@ -17,30 +17,14 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - name: Compare shipped lint presets
+      - name: Resolve the release comparison
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          install_and_build() (
-            cd "$1"
-            package_manager=$(node -p "require('./package.json').packageManager")
-            npm exec --yes --package="$package_manager" -- pnpm install --frozen-lockfile --ignore-scripts
-            npm run build
-          )
-
-          comparison=$(node scripts/release-report.ts metadata)
-          previous_commit=$(jq -r '.previousCommit // empty' <<< "$comparison")
-          baseline=--initial
-          if [[ -n "$previous_commit" ]]; then
-            baseline="$RUNNER_TEMP/previous-release"
-            git worktree add --detach "$baseline" "$previous_commit"
-            install_and_build "$baseline"
-          fi
-          install_and_build "$GITHUB_WORKSPACE"
-          {
-            node scripts/rule-changes.ts "$baseline"
-            printf '\n%s\n' "$(jq -r '.footer' <<< "$comparison")"
-          } > "$RUNNER_TEMP/rule-changes.md"
+          node scripts/release-report.ts metadata > "$RUNNER_TEMP/release-comparison.json"
+      - name: Compare shipped lint presets
+        run: |
+          bash scripts/generate-release-report.sh "$RUNNER_TEMP/release-comparison.json" "$RUNNER_TEMP/rule-changes.md"
       - uses: actions/upload-artifact@v7
         with:
           path: ${{ runner.temp }}/rule-changes.md
