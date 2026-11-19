@@ -174,7 +174,9 @@ export default defineConfig({
 });
 ```
 
-`coreStyle` enforces kebab-case filenames, `T[]` array syntax, top-level type imports, class property conventions, function and arrow syntax, and `await` inside async functions. `reactStyle` allows ordinary function declarations in React projects and enforces declarations for named components, expressions for anonymous components, shorthand fragments, string props without redundant braces, and self-closing empty elements. Add `{ vitestStyle }` from `@stzhu/oxlint-config/vitest` after `/vitest` to require `test` over `it`, explicit Vitest imports, and top-level `describe` blocks.
+`coreStyle` enforces kebab-case filenames, `T[]` array syntax, top-level type imports, class property conventions, function and arrow syntax, braces around control statements, and CSS selector methods for DOM lookups. It prefers async functions over callback patterns and requires `await` inside async functions and on returned promises. By default, the typed `return-await` rule requires awaiting returned promises where rejection handling or cleanup depends on it.
+
+`reactStyle` allows ordinary function declarations in React projects and enforces declarations for named components, expressions for anonymous components, shorthand fragments, string props without redundant braces, and self-closing empty elements. Add `{ vitestStyle }` from `@stzhu/oxlint-config/vitest` after `/vitest` to require `test` over `it`, explicit Vitest imports, and top-level `describe` blocks.
 
 Keep TypeScript's own type checks. [`verbatimModuleSyntax`](https://www.typescriptlang.org/tsconfig/#verbatimModuleSyntax) can enforce explicit type-only imports according to the compiler's emit rules. For projects that use legacy decorators and `emitDecoratorMetadata`, keep class imports used as dependency injection tokens as value imports. If you opt into `coreStyle`, set `"typescript/consistent-type-imports": "off"` in those projects because Oxlint can suggest removing a runtime import required by emitted metadata.
 

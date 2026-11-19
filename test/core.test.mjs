@@ -171,6 +171,48 @@ test("core accepts common syntax in framework callbacks and service classes", ()
   assert.ok(hasRule(diagnostics, "require-await"));
 });
 
+test("web accepts ID lookups and single-line guards unless core style is enabled", () => {
+  const files = {
+    "main.ts":
+      "const root = document.getElementById('root');\nif (!root) throw new Error('Missing root');\nexport { root };\n",
+  };
+  assert.deepEqual(lint(defineConfig({ extends: [reactWeb] }), files), []);
+
+  const diagnostics = lint(
+    defineConfig({ extends: [reactWeb, coreStyle] }),
+    files
+  );
+  assert.ok(hasRule(diagnostics, "curly"));
+  assert.ok(hasRule(diagnostics, "prefer-query-selector"));
+});
+
+test("core requires return await where a rejection would bypass the catch", () => {
+  const files = {
+    "tsconfig.json": JSON.stringify({
+      compilerOptions: { strict: true, target: "ES2022" },
+      include: ["*.ts"],
+    }),
+    "forward.ts":
+      "export async function forward() { await Promise.resolve(); return Promise.resolve('ready'); }\n",
+    "catch-rejection.ts":
+      "export async function recover(load: () => Promise<string>) { try { return load(); } catch { return 'fallback'; } }\n",
+    "await-rejection.ts":
+      "export async function recover(load: () => Promise<string>) { try { return await load(); } catch { return 'fallback'; } }\n",
+  };
+  const options = { typeAware: true };
+  const returnAwaitFiles = (presets) =>
+    lint(defineConfig({ extends: presets, options }), files)
+      .filter((diagnostic) => diagnostic.code?.includes("(return-await)"))
+      .map((diagnostic) => diagnostic.filename)
+      .toSorted();
+
+  assert.deepEqual(returnAwaitFiles([]), ["catch-rejection.ts"]);
+  assert.deepEqual(returnAwaitFiles([coreStyle]), [
+    "catch-rejection.ts",
+    "forward.ts",
+  ]);
+});
+
 test("core allows decorated modules and async handlers while Express 4 checks remain available", () => {
   const files = {
     "links-module.ts":
@@ -300,7 +342,8 @@ test("circular configs fail clearly while shared presets remain reusable", () =>
 });
 
 test("typed promise policy checks void, thenables, JSX and safe error handlers", () => {
-  const diagnostics = lint(defineConfig({ options: { typeAware: true } }), {
+  const options = { typeAware: true };
+  const files = {
     "tsconfig.json": JSON.stringify({
       compilerOptions: {
         strict: true,
@@ -319,10 +362,11 @@ test("typed promise policy checks void, thenables, JSX and safe error handlers",
     "handler.tsx":
       "export const button = <button onClick={async () => { await Promise.resolve(); }} />;",
     "safe.tsx":
-      "declare const save: () => Promise<void>; declare const reportError: (error: unknown) => void; export const button = <button onClick={() => { save().catch(reportError); }} />;",
+      "declare const save: () => Promise<void>; declare const reportError: (error: unknown) => void; export const button = <button onClick={() => { save().catch((error: unknown) => { reportError(error); }); }} />;",
     "supported.tsx":
       "declare const Action: (props: { action: () => Promise<void> }) => JSX.Element; export const button = <Action action={async () => { await Promise.resolve(); }} />;",
-  });
+  };
+  const diagnostics = lint(defineConfig({ options }), files);
   const promiseDiagnostics = diagnostics.filter((d) =>
     /no-floating-promises|no-misused-promises/u.test(d.code ?? "")
   );
@@ -331,6 +375,22 @@ test("typed promise policy checks void, thenables, JSX and safe error handlers",
     "thenable.ts",
     "voided.ts",
   ]);
+  assert.ok(
+    diagnostics.every((diagnostic) => diagnostic.filename !== "safe.tsx")
+  );
+
+  const styleDiagnostics = lint(
+    defineConfig({ extends: [coreStyle], options }),
+    files
+  );
+  assert.ok(
+    hasRule(
+      styleDiagnostics.filter(
+        (diagnostic) => diagnostic.filename === "safe.tsx"
+      ),
+      "prefer-await-to-callbacks"
+    )
+  );
 });
 
 test("Vitest preserves typed assignment checks and later fixture overrides", () => {
