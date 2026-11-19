@@ -252,6 +252,8 @@ The package pins Ultracite so upstream preset changes are reviewed. Upgrade Oxli
 
 ## Development
 
+See the [project direction and operating record](docs/project-direction.md) for the adoption goal, pilot results, and release milestones.
+
 ```sh
 pnpm install --frozen-lockfile
 pnpm check
