@@ -1,6 +1,6 @@
 {
   "name": "@stzhu/oxlint-config",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shared Ultracite presets for Oxlint and Oxfmt with optional ESLint plugins",
   "license": "MIT",
   "author": "Steve Zhu <4130171+stevezhu@users.noreply.github.com>",
