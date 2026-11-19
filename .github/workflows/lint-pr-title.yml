@@ -1,0 +1,13 @@
+name: Lint PR Title
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+
+jobs:
+  lint-pr-title:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: stevezhu/actions/lint-pr-title@v3
