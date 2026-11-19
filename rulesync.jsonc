@@ -1,0 +1,41 @@
+{
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
+  "targets": {
+    "claudecode": [
+      "rules",
+      "permissions",
+      "mcp",
+      "commands",
+      "subagents",
+      "skills",
+    ],
+    // Antigravity CLI permissions are supported only in global scope.
+    "antigravity-cli": ["rules", "mcp", "commands", "subagents", "skills"],
+    // Codex commands are supported only in global scope.
+    "codexcli": ["rules", "permissions", "mcp", "subagents", "skills"],
+  },
+  "outputRoots": ["."],
+  "delete": true,
+  "verbose": false,
+  "global": false,
+  "simulateCommands": false,
+  "simulateSubagents": false,
+  "simulateSkills": false,
+  "sources": [
+    {
+      "source": "antfu/skills",
+      "skills": ["pnpm"],
+    },
+    {
+      "source": "charl-kruger/mdrip",
+      "skills": ["mdrip"],
+    },
+    {
+      "source": "obra/superpowers",
+    },
+    {
+      "source": "stevezhu/skills",
+      "skills": ["agent-logbook"],
+    },
+  ],
+}

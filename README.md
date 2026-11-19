@@ -267,6 +267,17 @@ GitHub workflows follow the CI, version-bump, and release pattern of `@stzhu/esl
 
 Configure the repository's `NPM_TOKEN` secret for the publish action. Release publishing uses [`pnpm stage publish`](https://pnpm.io/cli/stage); approve the staged package on npmjs.com or with `pnpm stage approve <stage-id>` and 2FA before it becomes public. The stage ID appears in the action logs.
 
+### Agent configuration
+
+Rulesync generates project configuration for Claude Code, Antigravity CLI, and Codex from `.rulesync/`. After installing the project's dev dependencies, use an authenticated GitHub CLI session to install the shared skills pinned in `rulesync.lock` and generate the agent files.
+
+```sh
+pnpm rulesync:install --frozen
+pnpm exec rulesync generate
+```
+
+Edit the sources in `.rulesync/` and rerun generation after making changes.
+
 ### Release rule changes
 
 Run the **Rule changes** workflow on the tagged release candidate with `gh workflow run rule-changes.yml --ref <candidate-tag>`. The workflow compares against the most recent preceding GitHub release by publication time, including prereleases. The first release starts with an empty baseline. The workflow builds each selected revision using its frozen lockfile and generates a `rule-changes.md` report with both revision identities.

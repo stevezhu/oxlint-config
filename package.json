@@ -70,6 +70,7 @@
     "check": "pnpm lint && pnpm test",
     "format": "oxfmt --write .",
     "lint": "pnpm build && pnpm typecheck && oxfmt --check . && oxlint",
+    "rulesync:install": "GITHUB_TOKEN=$(gh auth token) rulesync install",
     "test": "pnpm build && node --test test/*.test.mjs",
     "prepack": "pnpm build",
     "typecheck": "tsc --noEmit -p tsconfig.json"
@@ -86,6 +87,7 @@
     "oxfmt": "0.78.0",
     "oxlint": "1.93.0",
     "oxlint-tsgolint": "7.0.2006",
+    "rulesync": "43.8.0",
     "tailwindcss": "^4.2.0",
     "typescript": "^6.0.3"
   },

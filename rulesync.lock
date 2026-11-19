@@ -1,0 +1,103 @@
+{
+  "lockfileVersion": 1,
+  "sources": {
+    "antfu/skills": {
+      "requestedRef": "main",
+      "resolvedRef": "f63e9ec7bc85f67364b6596c2d29da87e83ce445",
+      "resolvedAt": "2026-11-09T18:49:08.905Z",
+      "skills": {
+        "pnpm": {
+          "integrity": "sha256-eeaad86d4891decbc33fafefbe2c0dcacb12f4303c207936923fc7f9594ec57d"
+        }
+      },
+      "skillSelection": [
+        "pnpm"
+      ],
+      "skillsPath": "skills"
+    },
+    "charl-kruger/mdrip": {
+      "requestedRef": "main",
+      "resolvedRef": "3bc11285b4c6c3a498e1d4eeebe17dde447bebf2",
+      "resolvedAt": "2026-11-09T18:49:09.662Z",
+      "skills": {
+        "mdrip": {
+          "integrity": "sha256-74078e7e7778c0a3145fc9c90e1df44409ea20702e2f6bea664fc7404711f9b6"
+        }
+      },
+      "skillSelection": [
+        "mdrip"
+      ],
+      "skillsPath": "skills"
+    },
+    "obra/superpowers": {
+      "requestedRef": "main",
+      "resolvedRef": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "resolvedAt": "2026-11-09T18:49:09.893Z",
+      "skills": {
+        "brainstorming": {
+          "integrity": "sha256-9b27b54ca98e8b74ab6e46c5801a6656b9399e73b7d018a2936c319298995371"
+        },
+        "diagnosing-superpowers": {
+          "integrity": "sha256-ccaf2327da4738b2981bb1403d26fb18d2dd147c15289ad3ed52316f78141c20"
+        },
+        "dispatching-parallel-agents": {
+          "integrity": "sha256-1acb899b23c2bdb5af5961e7b97ba43fb2a5593822db755747ef3d5db9f825a4"
+        },
+        "executing-plans": {
+          "integrity": "sha256-6ef77339a452c7efefe0dfc058fff6285022fc01797f33760ef5a6ba7d75fdff"
+        },
+        "finishing-a-development-branch": {
+          "integrity": "sha256-1da9182001d887c0fb8c62aeee35c8f65b438b32a30b79104baedcca9e0ebef6"
+        },
+        "receiving-code-review": {
+          "integrity": "sha256-e5dd23be2d93f751c8b28d647c4b139754aedfe75648cd8e1100e47f5da0c3c5"
+        },
+        "requesting-code-review": {
+          "integrity": "sha256-172eafc2fdf60aadf38e5853975dda1367bf0c412d0af0e94b5cfea76f19ec35"
+        },
+        "subagent-driven-development": {
+          "integrity": "sha256-f1d21ca2e07ddf6ca2aed3a5ac6ce2570e0271336d3204db9f5a9afe8c39b46a"
+        },
+        "systematic-debugging": {
+          "integrity": "sha256-60e7465ae62f622e075f5b204d5f4acb20e8ff7d51e9cb59d3edf3e7e16de221"
+        },
+        "test-driven-development": {
+          "integrity": "sha256-8e8772822d25e4dfc9295cf4526c6251a10458c7417ac50c4b42e5d9fc91e0b0"
+        },
+        "using-git-worktrees": {
+          "integrity": "sha256-98dc7da4ead1fe3c523c7ac314082f1f85114ad5e6ec39d4426b4a7f76ed9d0c"
+        },
+        "using-superpowers": {
+          "integrity": "sha256-5b81d2b16c5c60219f92ce6e011502d390b7fbdbcb4e9aa19ae678ee7bb2166f"
+        },
+        "verification-before-completion": {
+          "integrity": "sha256-d8a53168f152b6163bd3447f7d4c20b6b4cddf6bd907f9aa5856b514c032db0e"
+        },
+        "writing-plans": {
+          "integrity": "sha256-b96f84fcdd4fc87bf3264e960e7a423bf6d3612e2b3355b4d6cd5f61ef7fe45d"
+        },
+        "writing-skills": {
+          "integrity": "sha256-da13cfa09f66bc2000a71894d6a19c13f8ab22c45b44bc3ea2869c4bd00f42de"
+        }
+      },
+      "skillSelection": [
+        "*"
+      ],
+      "skillsPath": "skills"
+    },
+    "stevezhu/skills": {
+      "requestedRef": "main",
+      "resolvedRef": "c6113641bdd72b5694807492b8714a6525e83664",
+      "resolvedAt": "2026-11-09T18:49:10.354Z",
+      "skills": {
+        "agent-logbook": {
+          "integrity": "sha256-2750109f8add1772f0d2aa557ff68d7431ed8244a6cda282438f428d4decc550"
+        }
+      },
+      "skillSelection": [
+        "agent-logbook"
+      ],
+      "skillsPath": "skills"
+    }
+  }
+}
