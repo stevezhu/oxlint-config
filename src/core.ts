@@ -5,20 +5,24 @@ import ultracite from "ultracite/oxlint/core";
 const styleRules = {
   "arrow-body-style": ["error", "as-needed"],
   "class-methods-use-this": "error",
+  curly: "error",
   "func-names": "error",
   "func-style": ["error", "expression", { allowArrowFunctions: true }],
   "import/consistent-type-specifier-style": ["error", "prefer-top-level"],
   "prefer-arrow-callback": "error",
+  "promise/prefer-await-to-callbacks": "error",
   "require-await": "error",
   "typescript/array-type": "error",
   "typescript/consistent-type-imports": "error",
   "typescript/parameter-properties": "error",
+  "typescript/return-await": ["error", "always"],
   "unicorn/filename-case": "error",
+  "unicorn/prefer-query-selector": "error",
 } satisfies NonNullable<OxlintConfig["rules"]>;
 
 /** Add to projects that want these code and filename conventions enforced. */
 export const coreStyle: OxlintConfig = defineConfig({
-  plugins: ["import", "typescript", "unicorn"],
+  plugins: ["import", "promise", "typescript", "unicorn"],
   rules: styleRules,
 });
 
@@ -65,6 +69,8 @@ const core: OxlintConfig = defineConfig({
       { ignoreVoid: false, checkThenables: true },
     ],
     "typescript/no-misused-promises": "error",
+    // Await before control leaves a scope that handles errors or runs cleanup.
+    "typescript/return-await": ["error", "error-handling-correctness-only"],
     // Preserve semantic grouping and explanatory comments. These restrictions
     // encourage mechanical rewrites without establishing correctness.
     "sort-keys": "off",
