@@ -31,7 +31,11 @@ Turn the passing local pilot into a release that a consumer can install from npm
 2. In the template, align Oxfmt to 0.78 and the existing `eslint-plugin-oxlint` bridge to 1.93, then put the web and server pilot behind the downstream CI gate using the registry version. Compare the effective ESLint configs for both apps and record each companion rule that contributes coverage before removing any duplicate. Exercise the existing root lint and codegen tasks before extending the migration to other workspaces.
 3. Repeat with a second monorepo. Start with the Nest/Next example tested in PR #3 as the second compatibility pilot. Record scoped install time, time to first green, and exceptions. Track a second adoption when another maintained downstream CI gate lands.
 
-## Pilot record
+## Integration testing
+
+Use the template as the primary downstream integration test repository. For each release candidate, pack the config, verify the template's current `main`, and run the web and server checks in a disposable copy. Record both commit IDs and any consumer changes needed to pass. [stevezhu/monorepo-template](https://github.com/stevezhu/monorepo-template).
+
+### Pilot record
 
 The first local pilot used `stevezhu/monorepo-template` at `13eecab38413536abe7ecf83cc9a481571defe6c` in a temporary snapshot. It covered the Vite/React web app and Cloudflare Worker server app with their actual pinned dependencies. The existing lint commands and TypeScript checks passed. The candidate used Node 26.4.0, pnpm 12.18.0, Oxlint 1.93.0, and oxlint-tsgolint 7.0.2006.
 
@@ -48,13 +52,17 @@ The template's existing Oxfmt 0.77 and ESLint bridge 1.92 caused peer warnings w
 
 The candidate in PR #8 passed `pnpm check` with registry access, including all 29 tests. The repository's packed-consumer test needs access to npm registry metadata.
 
+### Latest verification
+
+On November 18, 2026, the packed candidate `95e19cc435d2685b7656f4d010f20dcf11a860d7` was verified against the template's then-current `main` at `13eecab38413536abe7ecf83cc9a481571defe6c` in a fresh snapshot. The run used Node 26.13.0, pnpm 12.18.0, Oxlint and `eslint-plugin-oxlint` 1.93.0, Oxfmt 0.78.0, and oxlint-tsgolint 7.0.2006. The unmodified navigation callback produced the expected typed diagnostics. After the callback fix, typed lint passed on 19 files and both apps passed TypeScript and ESLint. A seeded dropped promise in each app and an unknown Tailwind class in the web app failed the root lint run. The corrected run passed on 22 files. The peer check still reported warnings in `example-convex` and `example-ext`, which were outside this run's scope.
+
 ### Replay the pilot
 
-1. Export the pinned template revision to a temporary directory. Install with `pnpm --filter . --filter 'example-web...' --filter 'example-server...' install --frozen-lockfile --ignore-scripts`. Run `pnpm --filter example-server run init` before its `codegen` script so Wrangler generates the example environment's types.
-2. Run `pnpm pack` from a checkout that includes the lint changes in PR #8. Install the tarball plus `oxlint@1.93.0` as dev dependencies at the template root. Preserve the template's existing root config for the other packages.
+1. Export the pinned template revision to a temporary directory to replay this pilot, or use the current `main` to verify a new candidate. Install with `pnpm --filter . --filter 'example-web...' --filter 'example-server...' install --frozen-lockfile --ignore-scripts`. Run `pnpm --filter example-server run init` before its `codegen` script so Wrangler generates the example environment's types.
+2. Run `pnpm pack` from a checkout that includes the lint changes in PR #8. Install the tarball, `oxlint@1.93.0`, and `oxfmt@0.78.0` as dev dependencies at the template root. Use `eslint-plugin-oxlint@1.93.0` in both pilot apps. Preserve the template's existing root config for the other packages.
 3. In `apps/example-web/oxlint.config.ts`, compose `/react-web`, `reactRefresh`, and `/tailwind` with this package's `defineConfig`. Set the Tailwind plugin's `cwd` to `import.meta.dirname` and resolve its entry point to the app's `src/main.css`. In `apps/example-server/oxlint.config.ts`, compose `/node` for tooling and set `env: { node: false, worker: true }` for `src/**/*.{ts,tsx}`. Preserve generated-file ignores in both configs, including `**/*.gen.ts`, `**/_generated/**`, and `**/*.gen.d.ts` for the server.
 4. In `apps/example-web/src/default-not-found-fallback.tsx`, make `onGoHome` return void. Handle the rejection from `router.navigate()` by reporting the error and updating the fallback's description so the user can retry.
-5. Run the following commands from the temporary template root. To verify typed coverage, call a declared promise-returning function without awaiting it in a temporary source file in each app. Then await it and rerun.
+5. Run the following commands from the temporary template root. To verify coverage, drop a promise in a temporary source file in each app and add an unknown Tailwind class to a temporary web component. Await both promises, replace the unknown class with a valid utility, and verify the lint run passes.
 
 ```sh
 pnpm exec oxlint --type-aware --max-warnings=0 \
@@ -71,3 +79,4 @@ Update this file when evidence changes the direction, when a milestone moves, or
 | --- | --- | --- |
 | 2026-11-18 | Prioritized real-consumer adoption and release readiness after synchronizing main. | Ran the web and server pilot on the template. |
 | 2026-11-18 | Reached green on the packed pilot with one source fix and no lint suppressions. Typed promise and Tailwind probes passed. | Prepare `0.2.0` and align the downstream tool versions for a reproducible CI migration. |
+| 2026-11-18 | Selected `stevezhu/monorepo-template` as the primary integration test repository and repeated the pilot with aligned tool versions in both apps. | Repeat the test on the release candidate and use the result to prepare downstream CI adoption. |
