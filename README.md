@@ -250,7 +250,7 @@ Oxfmt owns formatting and import/class ordering; side-effect import sorting rema
 
 This is a new baseline, not rule-for-rule compatibility with `@stzhu/eslint-config`. There is no Expo preset or import resolver replacement. Expo/React Native platform checks and additional `@eslint-react` rules (such as Web API leak detection) need a separately reviewed plugin/config. Native typed coverage also differs from typescript-eslint. Keep a small companion ESLint config when a needed rule requires a custom parser or TypeScript type information unavailable through Oxlint's JS plugin API. Do not enable both implementations of a rule.
 
-The package pins Ultracite so upstream preset changes are reviewed. Upgrade Oxlint and oxlint-tsgolint as a tested pair. Review effective rule changes and run native, plugin, and packed-consumer compatibility tests before publishing. New blocking diagnostics and preset environment changes require a documented breaking release. Test the minimum supported versions and any proposed upgrades before widening peer ranges. Additional native Ultracite framework presets can be supplied in `extends` without copying their rules. Follow [Ultracite's core-plus-framework layering](https://www.ultracite.ai/docs/configuration) and [Oxlint's migration guidance](https://oxc.rs/docs/guide/usage/linter/migrate-from-eslint).
+The development lockfile records the Ultracite version used in CI. Consumer installs can resolve newer Ultracite versions within the declared range. Upgrade Oxlint and oxlint-tsgolint as a tested pair. Review effective rule changes and run native, plugin, and packed-consumer compatibility tests before publishing. New blocking diagnostics and preset environment changes require a documented breaking release. Test the minimum supported versions and any proposed upgrades before widening peer ranges. Additional native Ultracite framework presets can be supplied in `extends` without copying their rules. Follow [Ultracite's core-plus-framework layering](https://www.ultracite.ai/docs/configuration) and [Oxlint's migration guidance](https://oxc.rs/docs/guide/usage/linter/migrate-from-eslint).
 
 ## Development
 
@@ -266,6 +266,17 @@ The checks build ESM and TypeScript declarations, type-check the source and conf
 GitHub workflows follow the CI, version-bump, and release pattern of `@stzhu/eslint-config`, using the composite actions in `stevezhu/actions@v3`. They run CI on pushes and pull requests to `main`, open a manually selected patch/minor/major version-bump PR, and stage an npm publish when a release is published. The actions select Node.js from `engines.node` in package.json and pnpm from `packageManager` (pnpm 12, which supports staged publishing).
 
 Configure the repository's `NPM_TOKEN` secret for the publish action. Release publishing uses [`pnpm stage publish`](https://pnpm.io/cli/stage); approve the staged package on npmjs.com or with `pnpm stage approve <stage-id>` and 2FA before it becomes public. The stage ID appears in the action logs.
+
+### Agent configuration
+
+Rulesync generates project configuration for Claude Code, Antigravity CLI, and Codex from `.rulesync/`. After installing the project's dev dependencies, use an authenticated GitHub CLI session to install the shared skills pinned in `rulesync.lock` and generate the agent files.
+
+```sh
+pnpm rulesync:install --frozen
+pnpm exec rulesync generate
+```
+
+Edit the sources in `.rulesync/` and rerun generation after making changes.
 
 ### Release rule changes
 

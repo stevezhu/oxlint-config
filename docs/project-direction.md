@@ -11,7 +11,7 @@ The first audience is teams already using pnpm and strict TypeScript with React 
 ## Product decisions
 
 - Prioritize actionable correctness checks for asynchronous code, unsafe typing, React Hooks, and browser accessibility. Require a failing example and a passing counterpart for a proposed default rule. Evaluate changes against actual consumer diagnostics before expanding the default gate.
-- Build on the pinned Ultracite presets and run the Oxlint and Oxfmt CLIs directly. Keep style conventions and the formatter opt-in. Enable JavaScript plugins where they cover a demonstrated gap and exercise their selected preset through the real CLI.
+- Build on Ultracite presets and run the Oxlint and Oxfmt CLIs directly. Keep style conventions and the formatter opt-in. Enable JavaScript plugins where they cover a demonstrated gap and exercise their selected preset through the real CLI.
 - Keep the root lint invocation and workspace-specific configuration as the standard recipe. Validate typed coverage, preset boundaries, and the behavior of a clean project separately. Keep the consumer's TypeScript check and document any complementary ESLint rules by name.
 - Treat release changes as part of the product. Ship effective rule diffs and migration notes with releases. Block new preset or tooling work on a demonstrated consumer need. Revisit Expo and other framework-specific coverage when there is a pilot that needs it.
 
