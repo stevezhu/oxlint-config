@@ -7,7 +7,7 @@ Shared TypeScript and React lint configuration built on [Ultracite](https://www.
 Requires Node.js 24+ and Oxlint 1.93+. This is an ESM package.
 
 ```sh
-pnpm add -D -E @stzhu/oxlint-config oxlint@1.93.0 oxlint-tsgolint@7.0.2006
+pnpm add -D @stzhu/oxlint-config oxlint oxlint-tsgolint
 ```
 
 Keep your project's TypeScript dependency and type-check command.
@@ -50,7 +50,7 @@ Run `pnpm lint` to see the diagnostics before applying any fixes. If you're migr
 Install the formatter and create `oxfmt.config.ts` (or `.mts`):
 
 ```sh
-pnpm add -D -E oxfmt@0.78.0
+pnpm add -D oxfmt
 ```
 
 ```ts
@@ -200,7 +200,7 @@ Oxfmt owns formatting and import/class ordering; side-effect import sorting rema
 
 This is a new baseline, not rule-for-rule compatibility with `@stzhu/eslint-config`. There is no Expo preset or import resolver replacement. Expo/React Native platform checks and additional `@eslint-react` rules (such as Web API leak detection) need a separately reviewed plugin/config. Native typed coverage also differs from typescript-eslint. Keep a small companion ESLint config when a needed rule requires a custom parser or TypeScript type information unavailable through Oxlint's JS plugin API. Do not enable both implementations of a rule.
 
-The package pins Ultracite so upstream preset changes are reviewed. Upgrade Oxlint and oxlint-tsgolint as a tested pair. Review effective rule changes and run native, plugin, and packed-consumer compatibility tests before publishing. New blocking diagnostics and preset environment changes require a documented breaking release. Keep consumer tools pinned; test the minimum supported versions and any newly proposed versions before widening peer ranges. Additional native Ultracite framework presets can be supplied in `extends` without copying their rules. Follow [Ultracite's core-plus-framework layering](https://www.ultracite.ai/docs/configuration) and [Oxlint's migration guidance](https://oxc.rs/docs/guide/usage/linter/migrate-from-eslint).
+The package pins Ultracite so upstream preset changes are reviewed. Upgrade Oxlint and oxlint-tsgolint as a tested pair. Review effective rule changes and run native, plugin, and packed-consumer compatibility tests before publishing. New blocking diagnostics and preset environment changes require a documented breaking release. Test the minimum supported versions and any proposed upgrades before widening peer ranges. Additional native Ultracite framework presets can be supplied in `extends` without copying their rules. Follow [Ultracite's core-plus-framework layering](https://www.ultracite.ai/docs/configuration) and [Oxlint's migration guidance](https://oxc.rs/docs/guide/usage/linter/migrate-from-eslint).
 
 ## Development
 
