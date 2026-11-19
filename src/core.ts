@@ -2,6 +2,26 @@ import { defineConfig } from "oxlint";
 import type { OxlintConfig } from "oxlint";
 import ultracite from "ultracite/oxlint/core";
 
+const styleRules = {
+  "arrow-body-style": ["error", "as-needed"],
+  "class-methods-use-this": "error",
+  "func-names": "error",
+  "func-style": ["error", "expression", { allowArrowFunctions: true }],
+  "import/consistent-type-specifier-style": ["error", "prefer-top-level"],
+  "prefer-arrow-callback": "error",
+  "require-await": "error",
+  "typescript/array-type": "error",
+  "typescript/consistent-type-imports": "error",
+  "typescript/parameter-properties": "error",
+  "unicorn/filename-case": "error",
+} satisfies NonNullable<OxlintConfig["rules"]>;
+
+/** Add to projects that want these code and filename conventions enforced. */
+export const coreStyle: OxlintConfig = defineConfig({
+  plugins: ["import", "typescript", "unicorn"],
+  rules: styleRules,
+});
+
 const core: OxlintConfig = defineConfig({
   ...ultracite,
   env: { browser: false },
@@ -15,6 +35,9 @@ const core: OxlintConfig = defineConfig({
   ],
   rules: {
     ...ultracite.rules,
+    ...Object.fromEntries(
+      Object.keys(styleRules).map((rule) => [rule, "off" as const])
+    ),
     // Preserve underscore-prefixed unused bindings from @stzhu/eslint-config;
     // Ultracite enables this rule without the explicit ignore patterns.
     "no-unused-vars": [
@@ -31,6 +54,10 @@ const core: OxlintConfig = defineConfig({
     // Allow both interfaces and type aliases, as @stzhu/eslint-config did;
     // Ultracite's default requires interfaces for object type definitions.
     "typescript/consistent-type-definitions": "off",
+    // Decorated classes can register framework behaviour without member code.
+    "typescript/no-extraneous-class": ["error", { allowWithDecorator: true }],
+    // Restrict async endpoint handlers only in projects using Express 4.
+    "oxc/no-async-endpoint-handlers": "off",
     // A void expression does not handle rejection. Check JSX callbacks too:
     // UI boundaries must catch failures instead of discarding their promises.
     "typescript/no-floating-promises": [

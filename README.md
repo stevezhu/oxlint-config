@@ -7,8 +7,10 @@ Shared TypeScript and React lint configuration built on [Ultracite](https://www.
 Requires Node.js 24+ and Oxlint 1.93+. This is an ESM package.
 
 ```sh
-pnpm add -D @stzhu/oxlint-config oxlint oxfmt oxlint-tsgolint typescript
+pnpm add -D @stzhu/oxlint-config oxlint oxlint-tsgolint
 ```
+
+Keep your project's TypeScript dependency and type-check command.
 
 Create `oxlint.config.ts` in a package with `"type": "module"`. Use `oxlint.config.mts` in other packages:
 
@@ -30,7 +32,26 @@ export default defineConfig({
 
 `defineConfig()` always includes the core preset. For a framework-free TypeScript project, use `defineConfig({ options: { typeAware: true } })`. Calling it with no arguments remains supported for projects without typed linting. For a server project, add `@stzhu/oxlint-config/node` to `extends`.
 
-Create `oxfmt.config.ts` (or `.mts`) separately:
+Add Oxlint to your CI scripts:
+
+```json
+{
+  "scripts": {
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
+  }
+}
+```
+
+Run `pnpm lint` to see the diagnostics before applying any fixes. If you're migrating from ESLint, review which project-specific checks still need your existing config before switching the CI gate.
+
+### Optional formatting
+
+Install the formatter and create `oxfmt.config.ts` (or `.mts`):
+
+```sh
+pnpm add -D oxfmt
+```
 
 ```ts
 import shared from "@stzhu/oxlint-config/oxfmt";
@@ -39,13 +60,13 @@ import { defineConfig } from "oxfmt";
 export default defineConfig({ ...shared });
 ```
 
-Use the tool CLIs directly; no additional runner or ESLint config is required:
+Add formatting scripts when you're ready to adopt the shared format:
 
 ```json
 {
   "scripts": {
-    "lint": "oxfmt --check . && oxlint --max-warnings=0",
-    "fix": "oxfmt --write . && oxlint --fix"
+    "format:check": "oxfmt --check .",
+    "format": "oxfmt --write ."
   }
 }
 ```
@@ -58,9 +79,9 @@ Each subpath default-exports an Oxlint config object for `extends`, except `/oxf
 | --- | --- |
 | `/core` or `/ts` | Ultracite core: JavaScript, TypeScript, imports, Node conventions, promises, JSDoc, Unicorn, and Oxc rules. Included by `defineConfig`. |
 | `/node` | Enables Node globals; disables browser globals. |
-| `/react` | Shared React, Hooks, and React Compiler rules, without browser globals or DOM/HTML checks. Named components use function declarations, anonymous components use function expressions. |
+| `/react` | Shared React, Hooks, and React Compiler rules, without browser globals or DOM/HTML checks. |
 | `/react-web` | Extends `/react` with browser globals, DOM checks, and JSX accessibility. |
-| `/vitest` | Ultracite's native Vitest rules, scoped to test/spec files and `__tests__`, including JS/TS variants. Prefers `test` over `it`. |
+| `/vitest` | Ultracite's native Vitest rules, scoped to test/spec files and `__tests__`, including JS/TS variants. |
 | `/storybook` | `eslint-plugin-storybook` recommended rules, scoped to stories and `.storybook/main.*`. |
 | `/tailwind` | `eslint-plugin-better-tailwindcss` correctness checks for unknown, conflicting, and concatenated classes. |
 | `/lingui` | `eslint-plugin-lingui` recommended checks. |
@@ -133,7 +154,29 @@ A relative lint `entryPoint` resolves from the plugin's `cwd`, which defaults to
 
 The wrapper preserves inherited `env`, `globals`, and `ignorePatterns` in declaration order, including nested presets. Oxlint otherwise drops those fields from imported `extends`. Consumer values win; additional ignores append to Ultracite's generated/build/dependency ignores. Negated patterns can re-include files. Oxlint handles rule, native plugin, and override merging. A matching inherited override wins over a root rule; put per-file customizations in a later matching `overrides` entry. See [Oxlint configuration](https://oxc.rs/docs/guide/usage/linter/config).
 
-Core disables browser globals; `/react-web` and `/node` select their environments. `/react` adds shared React checks without enabling a runtime. Split mixed server/browser code with file overrides. Core retains underscore-prefixed unused variable exemptions, permits either TypeScript object definition style, and allows numbers in template expressions. `/react` disables the conflicting general function-expression style rule. Other rules follow Ultracite's defaults, including kebab-case filenames.
+Core disables browser globals. `/react-web` and `/node` select their environments. `/react` adds shared React checks without enabling a runtime. Split mixed server/browser code with file overrides. Core retains underscore-prefixed unused variable exemptions, permits either TypeScript object definition style, and allows numbers in template expressions.
+
+Express 4 projects can enable [`oxc/no-async-endpoint-handlers`](https://oxc.rs/docs/guide/usage/linter/rules/oxc/no-async-endpoint-handlers) in their consumer `rules` to flag async handlers whose rejections need forwarding to `next`. Core allows async handlers used by frameworks such as Fastify and Express 5.
+
+### Opt-in style conventions
+
+The default presets accept existing filename case, array type syntax, function and component forms, import conventions, and equivalent JSX syntax. Add the style presets after your runtime presets to enforce the previous conventions.
+
+```ts
+import { defineConfig } from "@stzhu/oxlint-config";
+import { coreStyle } from "@stzhu/oxlint-config/core";
+import { reactStyle } from "@stzhu/oxlint-config/react";
+import reactWeb from "@stzhu/oxlint-config/react-web";
+
+export default defineConfig({
+  extends: [reactWeb, coreStyle, reactStyle],
+  options: { typeAware: true },
+});
+```
+
+`coreStyle` enforces kebab-case filenames, `T[]` array syntax, top-level type imports, class property conventions, function and arrow syntax, and `await` inside async functions. `reactStyle` allows ordinary function declarations in React projects and enforces declarations for named components, expressions for anonymous components, shorthand fragments, string props without redundant braces, and self-closing empty elements. Add `{ vitestStyle }` from `@stzhu/oxlint-config/vitest` after `/vitest` to require `test` over `it`, explicit Vitest imports, and top-level `describe` blocks.
+
+Keep TypeScript's own type checks. [`verbatimModuleSyntax`](https://www.typescriptlang.org/tsconfig/#verbatimModuleSyntax) can enforce explicit type-only imports according to the compiler's emit rules. For projects that use legacy decorators and `emitDecoratorMetadata`, keep class imports used as dependency injection tokens as value imports. If you opt into `coreStyle`, set `"typescript/consistent-type-imports": "off"` in those projects because Oxlint can suggest removing a runtime import required by emitted metadata.
 
 ### Migrating from the initial 0.1 baseline
 
@@ -142,6 +185,7 @@ These defaults introduce breaking lint-policy changes. Release them as a new 0.x
 - Web applications should change `/react` imports to `/react-web`. Shared hooks and native components can use `/react`; this does not provide Expo or React Native platform checks. Fast Refresh remains a separate named export from `/react`.
 - Typed linting now rejects discarded promises even when prefixed with `void`, including thenables, and checks async callbacks assigned to void-returning JSX props. Handle UI-boundary failures explicitly, for example `onClick={() => { save().catch(reportError); }}`. The error handler should report the failure and update the UI; an empty catch only hides it. APIs typed to accept promises remain supported.
 - Vitest retains type safety in tests. Prefer typed fixtures and mocks; put necessary exemptions in a later matching override for specific fixture files.
+- Add the relevant style presets if your team already relies on those conventions.
 - Core permits semantic object-key grouping, inline explanations, TODO comments, increment operators, `forEach`, `reduce`, and sequential awaits. Complexity, callback nesting, assertion-count and describe-depth budgets are no longer universal blocking rules. Evaluate project-specific budgets in a separate audit configuration before promoting them to the main gate.
 
 ### Project coverage and monorepos
@@ -204,7 +248,7 @@ Oxfmt owns formatting and import/class ordering; side-effect import sorting rema
 
 This is a new baseline, not rule-for-rule compatibility with `@stzhu/eslint-config`. There is no Expo preset or import resolver replacement. Expo/React Native platform checks and additional `@eslint-react` rules (such as Web API leak detection) need a separately reviewed plugin/config. Native typed coverage also differs from typescript-eslint. Keep a small companion ESLint config when a needed rule requires a custom parser or TypeScript type information unavailable through Oxlint's JS plugin API. Do not enable both implementations of a rule.
 
-The package pins Ultracite so upstream preset changes are reviewed. Upgrade Oxlint and oxlint-tsgolint as a tested pair. Review effective rule changes and run native, plugin, and packed-consumer compatibility tests before publishing. New blocking diagnostics and preset environment changes require a documented breaking release. Keep consumer tools pinned; test the minimum supported versions and any newly proposed versions before widening peer ranges. Additional native Ultracite framework presets can be supplied in `extends` without copying their rules. Follow [Ultracite's core-plus-framework layering](https://www.ultracite.ai/docs/configuration) and [Oxlint's migration guidance](https://oxc.rs/docs/guide/usage/linter/migrate-from-eslint).
+The package pins Ultracite so upstream preset changes are reviewed. Upgrade Oxlint and oxlint-tsgolint as a tested pair. Review effective rule changes and run native, plugin, and packed-consumer compatibility tests before publishing. New blocking diagnostics and preset environment changes require a documented breaking release. Test the minimum supported versions and any proposed upgrades before widening peer ranges. Additional native Ultracite framework presets can be supplied in `extends` without copying their rules. Follow [Ultracite's core-plus-framework layering](https://www.ultracite.ai/docs/configuration) and [Oxlint's migration guidance](https://oxc.rs/docs/guide/usage/linter/migrate-from-eslint).
 
 ## Development
 

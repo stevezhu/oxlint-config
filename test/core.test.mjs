@@ -7,10 +7,11 @@ import path from "node:path";
 import test from "node:test";
 
 import { defineConfig } from "@stzhu/oxlint-config";
+import { coreStyle } from "@stzhu/oxlint-config/core";
 import node from "@stzhu/oxlint-config/node";
-import react, { reactRefresh } from "@stzhu/oxlint-config/react";
+import react, { reactRefresh, reactStyle } from "@stzhu/oxlint-config/react";
 import reactWeb from "@stzhu/oxlint-config/react-web";
-import vitest from "@stzhu/oxlint-config/vitest";
+import vitest, { vitestStyle } from "@stzhu/oxlint-config/vitest";
 
 const require = createRequire(import.meta.url);
 const { delimiter, dirname, join } = path;
@@ -138,19 +139,114 @@ test("root rules and matching overrides can customize inherited rules", () => {
   );
 });
 
-test("native React accepts declarations and catches arrow components and hook misuse", () => {
+test("core accepts existing filenames, function declarations, arrays and type imports", () => {
+  const files = {
+    "Values.ts":
+      "export const example = ['hello']; export type Values = Array<string>; export function size(values: Values) { return values.length; }",
+    "consumer.ts":
+      "import { example, type Values } from './Values.js';\n\nexport const result: Values = example;",
+  };
+  assert.deepEqual(lint(defineConfig(), files), []);
+
+  const diagnostics = lint(defineConfig({ extends: [coreStyle] }), files);
+  assert.ok(hasRule(diagnostics, "array-type"));
+  assert.ok(hasRule(diagnostics, "consistent-type-specifier-style"));
+  assert.ok(hasRule(diagnostics, "filename-case"));
+  assert.ok(hasRule(diagnostics, "func-style"));
+});
+
+test("core accepts common syntax in framework callbacks and service classes", () => {
+  const files = {
+    "service.ts":
+      "export class Service { constructor(private readonly id: string) {} public getId() { return this.id; } public getVersion() { return 'v1'; } } export const plugins = ['read'].map(function (name) { return name.length; }); export const version = async () => { return 'v1'; };",
+  };
+  assert.deepEqual(lint(defineConfig(), files), []);
+
+  const diagnostics = lint(defineConfig({ extends: [coreStyle] }), files);
+  assert.ok(hasRule(diagnostics, "parameter-properties"));
+  assert.ok(hasRule(diagnostics, "class-methods-use-this"));
+  assert.ok(hasRule(diagnostics, "func-names"));
+  assert.ok(hasRule(diagnostics, "prefer-arrow-callback"));
+  assert.ok(hasRule(diagnostics, "arrow-body-style"));
+  assert.ok(hasRule(diagnostics, "require-await"));
+});
+
+test("core allows decorated modules and async handlers while Express 4 checks remain available", () => {
+  const files = {
+    "links-module.ts":
+      "declare const Module: () => ClassDecorator; @Module() export class LinksModule {}",
+    "empty.ts": "export class Empty {}",
+    "fastify-routes.ts":
+      "import fastify from 'fastify';\n\nconst app = fastify(); app.get('/', { schema: {} }, async function (request) { return request.query; });",
+    "express-routes.ts":
+      "import express from 'express';\n\ndeclare const repository: { load: (id: string) => Promise<string> }; const app = express(); app.get('/', async (request, response) => { const body = await repository.load(request.params.id); response.send(body); });",
+  };
+  const diagnostics = lint(defineConfig(), files);
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].filename, "empty.ts");
+  assert.ok(hasRule(diagnostics, "no-extraneous-class"));
+
+  const express = lint(
+    defineConfig({ rules: { "oxc/no-async-endpoint-handlers": "error" } }),
+    { "express-routes.ts": files["express-routes.ts"] }
+  );
+  assert.ok(hasRule(express, "no-async-endpoint-handlers"));
+});
+
+test("typed core leaves runtime decorator tokens as value imports and checks empty imports", () => {
+  const diagnostics = lint(defineConfig({ options: { typeAware: true } }), {
+    "tsconfig.json": JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        target: "ES2022",
+        module: "NodeNext",
+        experimentalDecorators: true,
+        emitDecoratorMetadata: true,
+      },
+      include: ["*.ts"],
+    }),
+    "service.ts": "export class Service { public readonly version = 'v1'; }",
+    "controller.ts":
+      "import { Service } from './service.js';\n\nconst controller = (): ClassDecorator => (target) => target;\n\n@controller()\nexport class Controller { constructor(private readonly service: Service) {} public version() { return this.service.version; } }",
+    "empty-import.ts":
+      "import { type Service } from './service.js';\n\nexport const version = (service: Service) => service.version;",
+  });
+  assert.ok(!hasRule(diagnostics, "consistent-type-imports"));
+  assert.ok(hasRule(diagnostics, "no-import-type-side-effects"));
+});
+
+test("native React allows both component forms and catches Hooks and Fast Refresh violations", () => {
   const config = defineConfig({ extends: [react, reactRefresh] });
   const valid = lint(config, {
-    "app.tsx": "export function App() { return <div />; }",
+    "app.tsx":
+      "export function App() { return <div />; } export const Panel = () => <div />;",
   });
   assert.deepEqual(valid, []);
   const invalid = lint(config, {
     "app.tsx":
       "import { useState } from 'react'; export const App = () => { if (Math.random() > 0.5) { useState(0); } return <div />; }; export function helper() { return 1; }",
   });
-  assert.ok(hasRule(invalid, "function-component-definition"));
+  assert.ok(!hasRule(invalid, "function-component-definition"));
   assert.ok(hasRule(invalid, "rules-of-hooks"));
   assert.ok(hasRule(invalid, "only-export-components"));
+});
+
+test("React style restores JSX conventions and composes with core style", () => {
+  const files = {
+    "panel.tsx":
+      "import React from 'react';\n\nexport const Panel = () => <React.Fragment><div aria-label={'panel'}></div><div /></React.Fragment>; export function App() { return <Panel />; }",
+  };
+  assert.deepEqual(lint(defineConfig({ extends: [reactWeb] }), files), []);
+
+  const diagnostics = lint(
+    defineConfig({ extends: [reactWeb, coreStyle, reactStyle] }),
+    files
+  );
+  assert.ok(hasRule(diagnostics, "function-component-definition"));
+  assert.ok(hasRule(diagnostics, "jsx-curly-brace-presence"));
+  assert.ok(hasRule(diagnostics, "jsx-fragments"));
+  assert.ok(hasRule(diagnostics, "self-closing-comp"));
+  assert.ok(!hasRule(diagnostics, "func-style"));
 });
 
 test("Vitest rules apply only to test files, including JavaScript and __tests__", () => {
@@ -166,6 +262,23 @@ test("Vitest rules apply only to test files, including JavaScript and __tests__"
   );
   assert.equal(focused.length, 2);
   assert.ok(focused.every((diagnostic) => diagnostic.filename !== "index.ts"));
+});
+
+test("Vitest makes naming, imports and suite grouping opt-in and scopes them to tests", () => {
+  const source = "it('works', () => { expect(1).toBe(1); });";
+  const files = { "sample.test.ts": source, "index.ts": source };
+  assert.deepEqual(lint(defineConfig({ extends: [vitest] }), files), []);
+
+  const diagnostics = lint(
+    defineConfig({ extends: [vitest, vitestStyle] }),
+    files
+  );
+  assert.ok(hasRule(diagnostics, "consistent-test-it"));
+  assert.ok(hasRule(diagnostics, "prefer-importing-vitest-globals"));
+  assert.ok(hasRule(diagnostics, "require-top-level-describe"));
+  assert.ok(
+    diagnostics.every((diagnostic) => diagnostic.filename === "sample.test.ts")
+  );
 });
 
 test("type-aware opt-in detects a floating promise through the installed runner", () => {
