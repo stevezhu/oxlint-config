@@ -251,6 +251,7 @@ test("monorepo lint applies each Tailwind theme and the root typed policy", (con
       },
     });`;
   const files = {
+    ".gitignore": "node_modules/\n",
     "oxlint.config.mts": `import { defineConfig } from "@stzhu/oxlint-config";
 
       export default defineConfig({
@@ -293,6 +294,19 @@ test("monorepo lint applies each Tailwind theme and the root typed policy", (con
   }
 
   const directory = createProject(context, files, workspaces);
+  const hoistedModules = path.join(
+    directory,
+    "node_modules/.pnpm/node_modules"
+  );
+  mkdirSync(hoistedModules, { recursive: true });
+  // Match the workspace links pnpm creates in the virtual store.
+  for (const workspace of workspaces) {
+    symlinkSync(
+      path.join(directory, workspace),
+      path.join(hoistedModules, path.basename(workspace)),
+      "junction"
+    );
+  }
   const clean = runLint(
     directory,
     workspaces.map((workspace) => `${workspace}/src/valid.tsx`)

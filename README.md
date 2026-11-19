@@ -156,6 +156,8 @@ The Turbo plugin discovers `turbo.json` from the invocation's working directory.
 
 For example, `apps/storefront` and `apps/admin` each have `src/styles.css` and their own `oxlint.config.mts`. Install the lint dependencies at the root and Tailwind CSS in each app.
 
+Add `node_modules/` to the root `.gitignore` so Oxlint skips pnpm's links back to the app sources.
+
 ```sh
 pnpm add -Dw @stzhu/oxlint-config oxlint oxlint-tsgolint typescript @types/node
 ```
