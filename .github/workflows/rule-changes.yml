@@ -1,0 +1,32 @@
+name: Rule changes
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Resolve the release comparison
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/release-report.ts metadata > "$RUNNER_TEMP/release-comparison.json"
+      - name: Compare shipped lint presets
+        run: |
+          bash scripts/generate-release-report.sh "$RUNNER_TEMP/release-comparison.json" "$RUNNER_TEMP/rule-changes.md"
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/rule-changes.md
+          archive: false
+          if-no-files-found: error

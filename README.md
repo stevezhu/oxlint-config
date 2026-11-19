@@ -170,3 +170,17 @@ The checks build ESM and TypeScript declarations, type-check the source and conf
 GitHub workflows follow the CI, version-bump, and release pattern of `@stzhu/eslint-config`, using the composite actions in `stevezhu/actions@v3`. They run CI on pushes and pull requests to `main`, open a manually selected patch/minor/major version-bump PR, and stage an npm publish when a release is published. The actions select Node.js from `engines.node` in package.json and pnpm from `packageManager` (pnpm 12, which supports staged publishing).
 
 Configure the repository's `NPM_TOKEN` secret for the publish action. Release publishing uses [`pnpm stage publish`](https://pnpm.io/cli/stage); approve the staged package on npmjs.com or with `pnpm stage approve <stage-id>` and 2FA before it becomes public. The stage ID appears in the action logs.
+
+### Release rule changes
+
+Run the **Rule changes** workflow on the tagged release candidate with `gh workflow run rule-changes.yml --ref <candidate-tag>`. The workflow compares against the most recent preceding GitHub release by publication time, including prereleases. The first release starts with an empty baseline. The workflow builds each selected revision using its frozen lockfile and generates a `rule-changes.md` report with both revision identities.
+
+Review the generated report and attach `rule-changes.md` as downloaded to the GitHub release draft before publishing it. The staging workflow rebuilds both revisions and compares the attached report byte for byte with its generated report. Regenerate the report if another release is published before your candidate. Publish releases separately so GitHub records distinct publication timestamps. The workflow stops when a timestamp tie makes the preceding release ambiguous.
+
+The report compares the rules selected by each revision’s Oxlint, including inherited rule options and ordered file overrides. It covers `defineConfig()` and each lint preset composed with the shared core. It compares rule settings and severities. Changes to rule implementations and formatter settings belong in the release notes when they affect consumers.
+
+To compare locally, build both checkouts with their own frozen installs, then run the following from the candidate checkout.
+
+```sh
+node scripts/rule-changes.ts /path/to/previous-release > rule-changes.md
+```
