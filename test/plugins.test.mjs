@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
+  copyFileSync,
   mkdirSync,
   mkdtempSync,
   rmSync,
@@ -25,12 +26,35 @@ const oxlint = path.join(
   "bin/oxlint"
 );
 
-const fixture = (context, preset, files, settings = {}) => {
+const createProject = (context, files, tailwindRoots = ["."]) => {
   const directory = mkdtempSync(path.join(tmpdir(), "stzhu-plugins-"));
   context.after(() => rmSync(directory, { recursive: true, force: true }));
+  const modules = path.join(directory, "node_modules");
+  const sharedPackage = path.join(modules, "@stzhu/oxlint-config");
+  mkdirSync(sharedPackage, { recursive: true });
+  // Only expose the files included in the published package to config discovery.
+  copyFileSync(
+    path.join(repository, "package.json"),
+    path.join(sharedPackage, "package.json")
+  );
   symlinkSync(
-    path.join(repository, "node_modules"),
-    path.join(directory, "node_modules"),
+    path.join(repository, "dist"),
+    path.join(sharedPackage, "dist"),
+    "junction"
+  );
+  for (const root of tailwindRoots) {
+    const tailwindModules = path.join(directory, root, "node_modules");
+    mkdirSync(tailwindModules, { recursive: true });
+    symlinkSync(
+      path.join(repository, "node_modules/tailwindcss"),
+      path.join(tailwindModules, "tailwindcss"),
+      "junction"
+    );
+  }
+  mkdirSync(path.join(modules, "@types"), { recursive: true });
+  symlinkSync(
+    path.join(repository, "node_modules/@types/node"),
+    path.join(modules, "@types/node"),
     "junction"
   );
   writeFileSync(
@@ -44,30 +68,39 @@ const fixture = (context, preset, files, settings = {}) => {
     writeFileSync(target, content);
   }
 
-  const config = { ...preset, settings };
-  writeFileSync(
-    path.join(directory, "oxlint.config.mts"),
-    `export default ${JSON.stringify(config)};`
+  return directory;
+};
+
+const runLint = (directory, args) => {
+  const result = spawnSync(
+    process.execPath,
+    [oxlint, "--format=json", ...args],
+    {
+      cwd: directory,
+      encoding: "utf-8",
+      env: {
+        ...process.env,
+        PATH: `${path.join(repository, "node_modules/.bin")}${path.delimiter}${process.env.PATH ?? ""}`,
+      },
+    }
   );
+  assert.equal(result.error, undefined);
+  assert.equal(result.signal, null);
+  assert.ok(result.status === 0 || result.status === 1, result.stderr);
+  assert.match(result.stdout, /^\s*\{/u, result.stdout);
+  return { status: result.status, ...JSON.parse(result.stdout) };
+};
+
+const fixture = (context, preset, files, settings = {}) => {
+  const config = { ...preset, settings };
+  const directory = createProject(context, {
+    ...files,
+    "oxlint.config.mts": `export default ${JSON.stringify(config)};`,
+  });
 
   return (file) => {
-    const result = spawnSync(
-      process.execPath,
-      [oxlint, "--format", "json", file],
-      {
-        cwd: directory,
-        encoding: "utf-8",
-        env: {
-          ...process.env,
-          PATH: `${path.join(repository, "node_modules/.bin")}${process.platform === "win32" ? ";" : ":"}${process.env.PATH ?? ""}`,
-        },
-      }
-    );
-    assert.equal(result.error, undefined);
-    assert.equal(result.signal, null);
-    assert.ok(result.status === 0 || result.status === 1, result.stderr);
-    const output = JSON.parse(result.stdout);
-    assert.equal(output.number_of_files, 1, result.stdout);
+    const output = runLint(directory, [file]);
+    assert.equal(output.number_of_files, 1);
     assert.ok(
       output.diagnostics.every((diagnostic) => diagnostic.code),
       JSON.stringify(output.diagnostics)
@@ -163,24 +196,132 @@ test("Tailwind correctness rules use the consumer stylesheet", (context) => {
   assert.deepEqual(lint("valid.tsx"), []);
 });
 
-test("Tailwind themes remain isolated between consumer workspaces", (context) => {
-  for (const [color, foreign] of [
-    ["brand", "accent"],
-    ["accent", "brand"],
-  ]) {
-    const lint = fixture(
-      context,
-      tailwind,
-      {
-        "styles.css": `@import "tailwindcss"; @theme { --color-${color}: #123456; }`,
-        "valid.tsx": `export const View = () => <div className="bg-${color}" />;`,
-        "foreign.tsx": `export const View = () => <div className="bg-${foreign}" />;`,
+const assertWorkspacePolicy = (output, roots) => {
+  assert.equal(output.status, 1);
+  assert.equal(
+    output.diagnostics.length,
+    roots.length * 3,
+    JSON.stringify(output.diagnostics)
+  );
+  const diagnostics = output.diagnostics.map((diagnostic) => ({
+    ...diagnostic,
+    filename: diagnostic.filename.replaceAll("\\", "/"),
+  }));
+  const filesForRule = (rule) =>
+    diagnostics
+      .filter((diagnostic) => diagnostic.code === rule)
+      .map((diagnostic) => diagnostic.filename)
+      .toSorted();
+  assert.deepEqual(
+    filesForRule("better-tailwindcss(no-unknown-classes)"),
+    roots.map((root) => `${root}src/foreign.tsx`)
+  );
+  assert.deepEqual(
+    filesForRule("typescript(no-floating-promises)"),
+    roots.map((root) => `${root}src/promise.ts`)
+  );
+  assert.deepEqual(
+    diagnostics
+      .filter(
+        (diagnostic) =>
+          /unused .*directive/iu.test(diagnostic.message) &&
+          diagnostic.severity === "error"
+      )
+      .map((diagnostic) => diagnostic.filename)
+      .toSorted(),
+    roots.map((root) => `${root}src/stale.ts`)
+  );
+};
+
+test("monorepo lint applies each Tailwind theme and the root typed policy", (context) => {
+  const workspaceConfig = `
+    import { fileURLToPath } from "node:url";
+
+    import { defineConfig } from "@stzhu/oxlint-config";
+    import reactWeb from "@stzhu/oxlint-config/react-web";
+    import tailwind from "@stzhu/oxlint-config/tailwind";
+
+    export default defineConfig({
+      extends: [reactWeb, tailwind],
+      settings: {
+        "better-tailwindcss": {
+          cwd: import.meta.dirname,
+          entryPoint: fileURLToPath(new URL("src/styles.css", import.meta.url)),
+        },
       },
-      { "better-tailwindcss": { entryPoint: "./styles.css" } }
-    );
-    assert.deepEqual(lint("valid.tsx"), []);
-    assert.ok(
-      lint("foreign.tsx").includes("better-tailwindcss(no-unknown-classes)")
+    });`;
+  const files = {
+    ".gitignore": "node_modules/\n",
+    "oxlint.config.mts": `import { defineConfig } from "@stzhu/oxlint-config";
+
+      export default defineConfig({
+        options: { typeAware: true, reportUnusedDisableDirectives: "error" },
+      });`,
+    "tsconfig.json": JSON.stringify({
+      compilerOptions: { strict: true, module: "NodeNext" },
+      include: ["oxlint.config.mts"],
+    }),
+  };
+
+  const workspaces = ["apps/admin", "apps/storefront"];
+  for (const [color, foreign] of [
+    ["admin", "storefront"],
+    ["storefront", "admin"],
+  ]) {
+    const workspace = `apps/${color}`;
+    files[`${workspace}/oxlint.config.mts`] = workspaceConfig;
+    files[`${workspace}/tsconfig.json`] = JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        module: "NodeNext",
+        jsx: "preserve",
+        types: ["node"],
+      },
+      include: ["src", "jsx.d.ts", "oxlint.config.mts"],
+    });
+    files[`${workspace}/jsx.d.ts`] =
+      "declare namespace JSX { type Element = { readonly kind?: 'jsx' }; interface IntrinsicElements { div: { className: string }; } }";
+    files[`${workspace}/src/styles.css`] =
+      `@import "tailwindcss"; @theme { --color-${color}: #123456; }`;
+    files[`${workspace}/src/valid.tsx`] =
+      `export function View() { return <div className="bg-${color}" />; }`;
+    files[`${workspace}/src/foreign.tsx`] =
+      `export function View() { return <div className="bg-${foreign}" />; }`;
+    files[`${workspace}/src/promise.ts`] =
+      "declare const pending: () => PromiseLike<void>; export const settle = () => { pending(); };";
+    files[`${workspace}/src/stale.ts`] =
+      "// oxlint-disable-next-line no-debugger\nexport const ready = true;";
+  }
+
+  const directory = createProject(context, files, workspaces);
+  const hoistedModules = path.join(
+    directory,
+    "node_modules/.pnpm/node_modules"
+  );
+  mkdirSync(hoistedModules, { recursive: true });
+  // Match the workspace links pnpm creates in the virtual store.
+  for (const workspace of workspaces) {
+    symlinkSync(
+      path.join(directory, workspace),
+      path.join(hoistedModules, path.basename(workspace)),
+      "junction"
     );
   }
+  const clean = runLint(
+    directory,
+    workspaces.map((workspace) => `${workspace}/src/valid.tsx`)
+  );
+  assert.deepEqual(clean.diagnostics, []);
+  assert.equal(clean.status, 0);
+
+  assertWorkspacePolicy(
+    runLint(directory, []),
+    workspaces.map((workspace) => `${workspace}/`)
+  );
+
+  const workspaceRun = runLint(path.join(directory, "apps/storefront"), [
+    "--type-aware",
+    "--report-unused-disable-directives-severity=error",
+  ]);
+  assertWorkspacePolicy(workspaceRun, [""]);
 });
