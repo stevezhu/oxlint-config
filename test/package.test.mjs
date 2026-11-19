@@ -162,6 +162,40 @@ export default defineConfig({ extends: [lingui] });
       ),
       "Oxlint should execute the package's transitive Lingui plugin"
     );
+
+    writeFileSync(
+      path.join(consumer, "style-presets.mts"),
+      `import { defineConfig, type OxlintConfig } from "@stzhu/oxlint-config";
+import { coreStyle } from "@stzhu/oxlint-config/core";
+import { reactStyle } from "@stzhu/oxlint-config/react";
+import { coreStyle as tsStyle } from "@stzhu/oxlint-config/ts";
+import { vitestStyle } from "@stzhu/oxlint-config/vitest";
+
+const styles = [coreStyle, reactStyle, vitestStyle];
+const config: OxlintConfig = defineConfig({ extends: styles });
+if (coreStyle !== tsStyle || styles.some((style) => !style || !config.extends?.includes(style))) {
+  throw new Error("The packed package must expose the named style presets");
+}
+`
+    );
+    writeFileSync(
+      path.join(consumer, "style-presets.tsconfig.json"),
+      JSON.stringify({
+        extends: "./tsconfig.json",
+        files: ["style-presets.mts"],
+        include: [],
+      })
+    );
+    run(process.execPath, ["style-presets.mts"], consumer);
+    run(
+      process.execPath,
+      [
+        path.join(root, "node_modules/typescript/bin/tsc"),
+        "-p",
+        "style-presets.tsconfig.json",
+      ],
+      consumer
+    );
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
