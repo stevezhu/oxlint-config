@@ -254,7 +254,7 @@ The development lockfile records the Ultracite version used in CI. Consumer inst
 
 ## Development
 
-See the [project direction and operating record](docs/project-direction.md) for the adoption goal, pilot results, and release milestones.
+For planned work and how priorities can change, see the [roadmap](docs/roadmap.md). For project decisions and downstream pilot results, see the [project direction and operating record](docs/project-direction.md).
 
 ```sh
 pnpm install --frozen-lockfile
